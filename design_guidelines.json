@@ -1,0 +1,126 @@
+{
+  "project_name": "World Cup 2026 Predictions",
+  "domain": "Sports Media & Prediction App",
+  "theme": {
+    "default_mode": "dark",
+    "supported_modes": ["dark", "light"],
+    "archetype": "Archetype 2 (Performance Pro) + Archetype 4 (Swiss & High-Contrast)",
+    "vibe": "Authoritative, competitive, tactical, high-contrast, premium sports media"
+  },
+  "typography": {
+    "fonts": {
+      "headings": {
+        "family": "Barlow Condensed, sans-serif",
+        "weights": ["700", "900"],
+        "usage": "Match scores, Group titles, Player/Team names, Main metrics"
+      },
+      "body": {
+        "family": "DM Sans, sans-serif",
+        "weights": ["400", "500", "700"],
+        "usage": "Data tables, timestamps, TV channels, secondary text"
+      }
+    },
+    "hierarchy": {
+      "h1": "text-4xl sm:text-5xl font-black uppercase tracking-tighter",
+      "h2": "text-2xl sm:text-3xl font-bold uppercase tracking-tight",
+      "h3": "text-xl sm:text-2xl font-bold",
+      "body": "text-base leading-relaxed",
+      "small": "text-xs sm:text-sm text-muted-foreground font-medium",
+      "overline": "text-[10px] uppercase tracking-[0.1em] text-muted-foreground"
+    }
+  },
+  "color_palette": {
+    "dark": {
+      "background": "#0A0A0A",
+      "surface": "#141414",
+      "surface_hover": "#1F1F1F",
+      "primary_text": "#FFFFFF",
+      "muted_text": "#A3A3A3",
+      "accent": "#E2001A",
+      "accent_hover": "#B30015",
+      "border": "rgba(255, 255, 255, 0.1)"
+    },
+    "light": {
+      "background": "#F5F5F5",
+      "surface": "#FFFFFF",
+      "surface_hover": "#F0F0F0",
+      "primary_text": "#111827",
+      "muted_text": "#6B7280",
+      "accent": "#E2001A",
+      "accent_hover": "#B30015",
+      "border": "rgba(0, 0, 0, 0.1)"
+    }
+  },
+  "layout_and_spacing": {
+    "philosophy": "Dense and scannable for match lists (control room grid), generous for user dashboard summary.",
+    "container": "max-w-4xl mx-auto w-full px-4 sm:px-6",
+    "match_row": "flex items-center justify-between py-3 border-b border-border/40 hover:bg-surface_hover transition-colors",
+    "group_header": "flex justify-between items-center bg-muted/20 px-3 py-2 mt-6 rounded-md uppercase text-xs font-bold tracking-widest",
+    "date_navigation": "flex overflow-x-auto whitespace-nowrap gap-2 py-4 sticky top-0 bg-background/90 backdrop-blur-md z-40 no-scrollbar"
+  },
+  "components": {
+    "score_inputs": {
+      "base": "w-12 h-12 text-center text-2xl font-black bg-surface border border-border rounded-md appearance-none focus:ring-2 focus:ring-accent focus:outline-none transition-all",
+      "notes": "Minimalist, no up/down arrows (appearance-none). Auto-save on blur or debounced."
+    },
+    "team_display": {
+      "layout": "flex items-center gap-2 or gap-3",
+      "flag": "w-6 h-4 sm:w-8 sm:h-5 rounded-sm object-cover shadow-sm",
+      "name": "font-bold text-sm sm:text-base truncate max-w-[100px] sm:max-w-[150px]"
+    },
+    "metadata": {
+      "layout": "flex flex-col items-center justify-center min-w-[60px]",
+      "time": "text-xs font-bold text-primary_text",
+      "tv_channel": "text-[10px] text-muted-foreground mt-0.5 whitespace-nowrap"
+    },
+    "standings_drawer": {
+      "type": "Shadcn Sheet/Drawer or Dialog",
+      "trigger": "Discreet button next to Group Header (e.g., 'Voir le classement')",
+      "content": "Data-dense table showing PTS, J, G, N, P, BP, BC, DIFF."
+    },
+    "buttons": {
+      "primary": "bg-accent text-white hover:bg-accent_hover font-bold uppercase tracking-wide rounded-md px-6 py-2 transition-transform active:scale-95",
+      "secondary": "bg-surface border border-border text-primary_text hover:bg-surface_hover font-bold rounded-md px-4 py-2"
+    },
+    "badges": {
+      "status": "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-surface border border-border"
+    }
+  },
+  "interactions_and_motion": {
+    "hover_states": "Match rows must highlight slightly on hover. Score inputs must receive an accent ring on focus.",
+    "transitions": "Use fast, snappy transitions (duration-150 ease-out) for tactical feel.",
+    "auto_save": "Prediction inputs should auto-save with a debounced request. Show a discreet 'Saved' or 'Check' icon next to the input briefly upon success."
+  },
+  "media_and_assets": {
+    "icons": {
+      "library": "lucide-react",
+      "usage": "Use bold/stroke-2 variations. Keep them minimal."
+    },
+    "images": {
+      "hero_background": {
+        "url": "https://images.unsplash.com/photo-1522778119026-d647f0596c20?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzV8MHwxfHNlYXJjaHwxfHxzb2NjZXIlMjBzdGFkaXVtJTIwbmlnaHR8ZW58MHx8fHwxNzgxMTI5NDk4fDA&ixlib=rb-4.1.0&q=85",
+        "description": "Illuminated soccer stadium at night. Use with heavy dark overlay (bg-black/70) for hero or dashboard headers."
+      },
+      "auth_background": {
+        "url": "https://images.unsplash.com/photo-1665413811870-5b29a250f64a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1ODB8MHwxfHNlYXJjaHwxfHxmb290YmFsbCUyMGZhbnMlMjBkYXJrfGVufDB8fHx8MTc4MTEyOTQ5OHww&ixlib=rb-4.1.0&q=85",
+        "description": "Dark, atmospheric shot of football fans. Use for Login/Register page background with backdrop-blur and dark gradient."
+      },
+      "flags_api": {
+        "instruction": "Use a reliable CDN for country flags (e.g., flagcdn.com) using country codes (iso2) mapped to the 48 qualified teams."
+      }
+    }
+  },
+  "accessibility_and_testing": {
+    "contrast": "Ensure text over dark surfaces meets WCAG AA standards. Use #A3A3A3 for muted text against #0A0A0A base.",
+    "testing_attributes": "All interactive elements MUST have data-testid (e.g., data-testid='match-score-input-home', data-testid='standings-trigger-group-a')."
+  },
+  "instructions_to_main_agent": [
+    "Initialize Shadcn UI and add components: sheet, input, button, tabs, card.",
+    "Install fonts: Barlow Condensed (Google Fonts) and DM Sans.",
+    "Set up Tailwind config with the provided dark/light mode palette using CSS variables.",
+    "Ensure 'appearance-none' is used on type='number' inputs to hide default arrows.",
+    "Implement debouncing (e.g., via lodash or custom hook) for the score predictions.",
+    "Build the UI in French strictly, matching sports media terminology (e.g., '1re journée', 'Classement').",
+    "Avoid generic cards for match lists; use flat, dense list rows with 1px border separators."
+  ]
+}
