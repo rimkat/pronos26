@@ -1,6 +1,6 @@
 import "@/App.css";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { Toaster } from "@/components/ui/sonner";
 import NavBar from "@/components/NavBar";
@@ -11,24 +11,33 @@ import DashboardPage from "@/pages/Dashboard";
 import LeaderboardPage from "@/pages/Leaderboard";
 import LeaguesPage from "@/pages/Leagues";
 
+function AppContent() {
+  const { user } = useAuth();
+  const isAuthed = user && user.id;
+
+  return (
+    <div className={`App min-h-screen bg-background ${isAuthed ? "pb-16 sm:pb-0" : ""}`}>
+      <NavBar />
+      <Routes>
+        <Route path="/" element={<MatchesPage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/classement" element={<LeaderboardPage />} />
+        <Route path="/leaderboard" element={<LeaderboardPage />} />
+        <Route path="/ligues" element={<LeaguesPage />} />
+      </Routes>
+      <Toaster position="top-right" richColors />
+    </div>
+  );
+}
+
 function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
         <BrowserRouter>
-          <div className="App min-h-screen bg-background">
-            <NavBar />
-            <Routes>
-              <Route path="/" element={<MatchesPage />} />
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/register" element={<RegisterPage />} />
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/classement" element={<LeaderboardPage />} />
-              <Route path="/leaderboard" element={<LeaderboardPage />} />
-              <Route path="/ligues" element={<LeaguesPage />} />
-            </Routes>
-            <Toaster position="top-right" richColors />
-          </div>
+          <AppContent />
         </BrowserRouter>
       </AuthProvider>
     </ThemeProvider>

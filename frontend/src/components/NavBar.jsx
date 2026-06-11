@@ -25,61 +25,96 @@ export default function NavBar() {
     );
   };
 
+  const isAuthed = user && user.id;
+
   return (
-    <header className="sticky top-0 z-50 bg-background/85 backdrop-blur-md border-b border-border">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-3">
-        <Link to="/" className="flex items-center gap-2" data-testid="nav-logo">
-          <div className="h-7 w-7 rounded-sm bg-primary flex items-center justify-center">
-            <Trophy className="h-4 w-4 text-primary-foreground" />
+    <>
+      <header className="sticky top-0 z-50 bg-background/85 backdrop-blur-md border-b border-border">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-3">
+          <Link to="/" className="flex items-center gap-2" data-testid="nav-logo">
+            <div className="h-7 w-7 rounded-sm bg-primary flex items-center justify-center">
+              <Trophy className="h-4 w-4 text-primary-foreground" />
+            </div>
+            <span className="display font-black text-lg tracking-tight uppercase">
+              Pronos<span className="text-primary">26</span>
+            </span>
+          </Link>
+
+          {/* Sur mobile, si connecté, ces liens basculent dans le bandeau du bas */}
+          <nav className={`items-center gap-1 ${isAuthed ? "hidden sm:flex" : "flex"}`}>
+            <NavLink to="/" label="Matchs" icon={Trophy} testid="nav-matches" />
+            {isAuthed && (
+              <>
+                <NavLink to="/dashboard" label="Tableau" icon={LayoutDashboard} testid="nav-dashboard" />
+                <NavLink to="/ligues" label="Ligues" icon={Users} testid="nav-leagues" />
+                <NavLink to="/classement" label="Classement" icon={ListOrdered} testid="nav-leaderboard" />
+              </>
+            )}
+          </nav>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggle}
+              data-testid="theme-toggle"
+              aria-label="Changer de thème"
+            >
+              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </Button>
+            {isAuthed ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => { logout(); navigate("/login"); }}
+                data-testid="nav-logout"
+                className="font-bold uppercase tracking-wide text-xs"
+              >
+                <LogOut className="h-4 w-4" />
+                <span className="hidden sm:inline">Sortir</span>
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                onClick={() => navigate("/login")}
+                data-testid="nav-login"
+                className="font-bold uppercase tracking-wide text-xs"
+              >
+                <LogIn className="h-4 w-4" /> Connexion
+              </Button>
+            )}
           </div>
-          <span className="display font-black text-lg tracking-tight uppercase">
-            Pronos<span className="text-primary">26</span>
-          </span>
-        </Link>
-
-        <nav className="flex items-center gap-1">
-          <NavLink to="/" label="Matchs" icon={Trophy} testid="nav-matches" />
-          {user && user.id && (
-            <>
-              <NavLink to="/dashboard" label="Tableau" icon={LayoutDashboard} testid="nav-dashboard" />
-              <NavLink to="/ligues" label="Ligues" icon={Users} testid="nav-leagues" />
-              <NavLink to="/classement" label="Classement" icon={ListOrdered} testid="nav-leaderboard" />
-            </>
-          )}
-        </nav>
-
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggle}
-            data-testid="theme-toggle"
-            aria-label="Changer de thème"
-          >
-            {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          </Button>
-          {user && user.id ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => { logout(); navigate("/login"); }}
-              data-testid="nav-logout"
-              className="font-bold uppercase tracking-wide text-xs"
-            >
-              <LogOut className="h-3.5 w-3.5 mr-1.5" /> Sortir
-            </Button>
-          ) : (
-            <Button
-              size="sm"
-              onClick={() => navigate("/login")}
-              data-testid="nav-login"
-              className="font-bold uppercase tracking-wide text-xs"
-            >
-              <LogIn className="h-3.5 w-3.5 mr-1.5" /> Connexion
-            </Button>
-          )}
         </div>
-      </div>
-    </header>
+      </header>
+
+      {/* Bandeau sticky en bas, mobile uniquement, pour les utilisateurs connectés */}
+      {isAuthed && (
+        <nav
+          className="sm:hidden fixed bottom-0 inset-x-0 z-50 bg-background/95 backdrop-blur-md border-t border-border flex items-stretch justify-around"
+          data-testid="mobile-bottom-nav"
+        >
+          <BottomLink to="/" label="Matchs" icon={Trophy} testid="bottom-nav-matches" location={location} />
+          <BottomLink to="/dashboard" label="Tableau" icon={LayoutDashboard} testid="bottom-nav-dashboard" location={location} />
+          <BottomLink to="/ligues" label="Ligues" icon={Users} testid="bottom-nav-leagues" location={location} />
+          <BottomLink to="/classement" label="Classement" icon={ListOrdered} testid="bottom-nav-leaderboard" location={location} />
+        </nav>
+      )}
+    </>
+  );
+}
+
+function BottomLink({ to, label, icon: Icon, testid, location }) {
+  const active = location.pathname === to;
+  return (
+    <Link
+      to={to}
+      data-testid={testid}
+      className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-bold uppercase tracking-wide transition-colors ${
+        active ? "text-primary" : "text-muted-foreground"
+      }`}
+    >
+      <Icon className="h-5 w-5" />
+      {label}
+    </Link>
   );
 }
