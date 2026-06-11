@@ -151,6 +151,15 @@ class MatchResultIn(BaseModel):
     status: Literal["live", "finished"] = "finished"
 
 
+class MatchTeamsIn(BaseModel):
+    """Mise à jour des équipes d'un match (utile pour la phase éliminatoire)."""
+    match_id: str
+    home_team: Optional[str] = Field(default=None, min_length=1, max_length=60)
+    home_code: Optional[str] = Field(default=None, max_length=10)
+    away_team: Optional[str] = Field(default=None, min_length=1, max_length=60)
+    away_code: Optional[str] = Field(default=None, max_length=10)
+
+
 class LeaderboardEntry(BaseModel):
     rank: int
     pseudo: str
@@ -451,6 +460,46 @@ async def set_match_result(payload: MatchResultIn, _: bool = Depends(require_adm
     if payload.status == "finished":
         await recalculate_match_points(payload.match_id)
     return {"ok": True, "match_id": payload.match_id, "status": payload.status}
+
+
+@api.patch("/admin/match-teams")
+async def set_match_teams(payload: MatchTeamsIn, _: bool = Depends(require_admin)):
+    """
+    Met à jour les équipes d'un match (utile pour la phase éliminatoire
+    quand le bracket se remplit). Seuls les champs fournis sont modifiés.
+
+    Body attendu :
+      {
+        "match_id": "...",
+        "home_team": "Brésil",        // optionnel
+        "home_code": "br",            // optionnel
+        "away_team": "France",        // optionnel
+        "away_code": "fr"             // optionnel
+      }
+
+    Note: les pronostics déjà saisis sur ce match restent valides
+    (le score prédit reste lié au match_id, pas aux noms d'équipes).
+    """
+    match = await db.matches.find_one({"id": payload.match_id})
+    if not match:
+        raise HTTPException(status_code=404, detail="Match introuvable")
+
+    update_fields = {}
+    if payload.home_team is not None:
+        update_fields["home_team"] = payload.home_team.strip()
+    if payload.home_code is not None:
+        update_fields["home_code"] = payload.home_code.strip().lower()
+    if payload.away_team is not None:
+        update_fields["away_team"] = payload.away_team.strip()
+    if payload.away_code is not None:
+        update_fields["away_code"] = payload.away_code.strip().lower()
+
+    if not update_fields:
+        raise HTTPException(status_code=400, detail="Aucun champ à mettre à jour")
+
+    await db.matches.update_one({"id": payload.match_id}, {"$set": update_fields})
+    updated = await db.matches.find_one({"id": payload.match_id}, {"_id": 0})
+    return {"ok": True, "match": updated}
 
 
 # ------------------------------------------------------------------
