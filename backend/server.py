@@ -149,6 +149,8 @@ class MatchResultIn(BaseModel):
     home_score_actual: int = Field(ge=0, le=99)
     away_score_actual: int = Field(ge=0, le=99)
     status: Literal["live", "finished"] = "finished"
+    # Pour les matchs à élimination directe terminés sur égalité (tirs au but)
+    winner: Optional[Literal["home", "away"]] = None
 
 
 class MatchTeamsIn(BaseModel):
@@ -218,6 +220,99 @@ async def recalculate_match_points(match_id: str):
             await db.users.update_one(
                 {"id": pred["user_id"]}, {"$inc": {"total_points": delta}}
             )
+
+
+# Bracket d'élimination directe : map (round, matchday) -> { next round, slot, role }
+# role = "winner" pour SF→Finale et tours précédents, mais SF a aussi un loser→3RD.
+def _next_slot_for(round_key: str, md: int) -> Optional[dict]:
+    """
+    Retourne {next_round, next_md, slot} pour le VAINQUEUR.
+    Renvoie None si pas de tour suivant (Finale, 3e place).
+    """
+    if round_key == "R32":
+        return {"next_round": "R16", "next_md": (md + 1) // 2, "slot": "home" if md % 2 == 1 else "away"}
+    if round_key == "R16":
+        return {"next_round": "QF", "next_md": (md + 1) // 2, "slot": "home" if md % 2 == 1 else "away"}
+    if round_key == "QF":
+        return {"next_round": "SF", "next_md": (md + 1) // 2, "slot": "home" if md % 2 == 1 else "away"}
+    if round_key == "SF":
+        # Vainqueur SF #1 → home Finale, SF #2 → away Finale
+        return {"next_round": "F", "next_md": 1, "slot": "home" if md == 1 else "away"}
+    return None  # Finale ou 3e place : pas de tour suivant
+
+
+def _loser_slot_for(round_key: str, md: int) -> Optional[dict]:
+    """Perdants : uniquement les SF alimentent le match pour la 3e place."""
+    if round_key == "SF":
+        return {"next_round": "3RD", "next_md": 1, "slot": "home" if md == 1 else "away"}
+    return None
+
+
+async def _set_team_in_slot(round_key: str, matchday: int, slot: str, team_name: str, team_code: str):
+    """Met à jour le slot home/away d'un match knockout. Idempotent."""
+    await db.matches.update_one(
+        {"phase": "knockout", "round": round_key, "matchday": matchday},
+        {"$set": {f"{slot}_team": team_name, f"{slot}_code": team_code}},
+    )
+
+
+async def propagate_knockout_winner(match_id: str):
+    """
+    Quand un match knockout passe à 'finished', propage le vainqueur (et le perdant
+    de demi-finale vers le match pour la 3e place).
+
+    Égalité au score : nécessite que payload.winner soit "home" ou "away" (tirs au but),
+    sinon la propagation est sautée.
+    """
+    match = await db.matches.find_one({"id": match_id}, {"_id": 0})
+    if not match or match.get("phase") != "knockout" or match.get("status") != "finished":
+        return
+    ha = match["home_score_actual"]
+    aa = match["away_score_actual"]
+    if ha is None or aa is None:
+        return
+
+    explicit_winner = match.get("winner_side")  # "home" | "away" | None
+    if ha > aa:
+        winner_side = "home"
+    elif aa > ha:
+        winner_side = "away"
+    else:
+        if explicit_winner not in ("home", "away"):
+            logger.info(f"Égalité sans 'winner' explicite sur {match_id} - propagation sautée")
+            return
+        winner_side = explicit_winner
+
+    loser_side = "away" if winner_side == "home" else "home"
+    winner_name = match[f"{winner_side}_team"]
+    winner_code = match[f"{winner_side}_code"]
+    loser_name = match[f"{loser_side}_team"]
+    loser_code = match[f"{loser_side}_code"]
+
+    round_key = match["round"]
+    md = match["matchday"]
+
+    win_target = _next_slot_for(round_key, md)
+    if win_target:
+        await _set_team_in_slot(
+            win_target["next_round"], win_target["next_md"], win_target["slot"],
+            winner_name, winner_code,
+        )
+        logger.info(
+            f"Bracket: {round_key}#{md} vainqueur {winner_name} → "
+            f"{win_target['next_round']}#{win_target['next_md']} ({win_target['slot']})"
+        )
+
+    lose_target = _loser_slot_for(round_key, md)
+    if lose_target:
+        await _set_team_in_slot(
+            lose_target["next_round"], lose_target["next_md"], lose_target["slot"],
+            loser_name, loser_code,
+        )
+        logger.info(
+            f"Bracket: {round_key}#{md} perdant {loser_name} → "
+            f"{lose_target['next_round']}#{lose_target['next_md']} ({lose_target['slot']})"
+        )
 
 
 # ------------------------------------------------------------------
@@ -445,20 +540,28 @@ def require_admin(x_admin_token: Optional[str] = Header(None)):
 
 @api.post("/admin/match-result")
 async def set_match_result(payload: MatchResultIn, _: bool = Depends(require_admin)):
-    """Enregistre le résultat d'un match. Si status=finished, recalcule les points."""
+    """Enregistre le résultat d'un match. Si status=finished, recalcule les points
+    et propage le vainqueur dans le bracket si c'est un match knockout."""
     match = await db.matches.find_one({"id": payload.match_id})
     if not match:
         raise HTTPException(status_code=404, detail="Match introuvable")
-    await db.matches.update_one(
-        {"id": payload.match_id},
-        {"$set": {
-            "home_score_actual": payload.home_score_actual,
-            "away_score_actual": payload.away_score_actual,
-            "status": payload.status,
-        }},
-    )
+
+    update = {
+        "home_score_actual": payload.home_score_actual,
+        "away_score_actual": payload.away_score_actual,
+        "status": payload.status,
+    }
+    # Mémorise un éventuel vainqueur explicite (égalité en knockout / tirs au but)
+    if payload.winner is not None:
+        update["winner_side"] = payload.winner
+
+    await db.matches.update_one({"id": payload.match_id}, {"$set": update})
+
     if payload.status == "finished":
         await recalculate_match_points(payload.match_id)
+        if match.get("phase") == "knockout":
+            await propagate_knockout_winner(payload.match_id)
+
     return {"ok": True, "match_id": payload.match_id, "status": payload.status}
 
 
