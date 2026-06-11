@@ -46,6 +46,24 @@ bearer_scheme = HTTPBearer(auto_error=False)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+# ------------------------------------------------------------------
+# CORS
+# ------------------------------------------------------------------
+_cors_origins_env = os.environ.get("CORS_ORIGINS", "*")
+_cors_origins = [o.strip() for o in _cors_origins_env.split(",") if o.strip()]
+_allow_all_origins = "*" in _cors_origins
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"] if _allow_all_origins else _cors_origins,
+    # Couvre les URLs de preview Vercel (hash aléatoire par déploiement),
+    # en plus des origines explicites listées dans CORS_ORIGINS.
+    allow_origin_regex=r"https://pronos26.*\.vercel\.app" if not _allow_all_origins else None,
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 # ------------------------------------------------------------------
 # Helpers Auth
