@@ -9,6 +9,7 @@ import LoginPage from "@/pages/Login";
 import RegisterPage from "@/pages/Register";
 import DashboardPage from "@/pages/Dashboard";
 import LeaderboardPage from "@/pages/Leaderboard";
+import LeaguesPage from "@/pages/Leagues";
 
 function App() {
   return (
@@ -24,6 +25,7 @@ function App() {
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/classement" element={<LeaderboardPage />} />
               <Route path="/leaderboard" element={<LeaderboardPage />} />
+              <Route path="/ligues" element={<LeaguesPage />} />
             </Routes>
             <Toaster position="top-right" richColors />
           </div>

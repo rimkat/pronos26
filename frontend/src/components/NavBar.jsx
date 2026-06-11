@@ -2,7 +2,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Button } from "@/components/ui/button";
-import { Trophy, LayoutDashboard, ListOrdered, Sun, Moon, LogOut, LogIn } from "lucide-react";
+import { Trophy, LayoutDashboard, ListOrdered, Sun, Moon, LogOut, LogIn, Users } from "lucide-react";
 
 export default function NavBar() {
   const { user, logout } = useAuth();
@@ -42,6 +42,7 @@ export default function NavBar() {
           {user && user.id && (
             <>
               <NavLink to="/dashboard" label="Tableau" icon={LayoutDashboard} testid="nav-dashboard" />
+              <NavLink to="/ligues" label="Ligues" icon={Users} testid="nav-leagues" />
               <NavLink to="/classement" label="Classement" icon={ListOrdered} testid="nav-leaderboard" />
             </>
           )}

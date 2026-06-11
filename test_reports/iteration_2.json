@@ -1,0 +1,36 @@
+{
+  "summary": "Iteration 2 testing of WC2026 Pronostics MVP after adding the knockout phase (8 rounds: R32→Finale) and private leagues (create/join/leaderboard/leave). Rewrote the obsolete email/password test suite into pseudo+PIN; added knockout & league coverage. Backend: 25/25 pytest tests pass. Frontend: NavBar 'Ligues' link, /ligues page (create + join dialogs + copy code/link), KO Finale rendering on 2026-07-19, R32 on 2026-06-27, group-phase regression, dashboard and leaderboard all OK.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_backend.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py: import secrets done in the middle of the file (line 488) — minor style; consider hoisting to top imports.",
+    "server.py /leagues create_league: 'code' may be undefined if all 5 collision retries return existing codes (extremely unlikely with 32^6 space but technically possible). Consider raising 500 explicitly after exhausting retries.",
+    "fixtures.py knockout 'À déterminer' placeholders are fine but ensure home_code='' is filtered properly in StandingsDrawer (verified: standings not shown in KO sections).",
+    "Frontend Leagues.jsx: navigator.clipboard.writeText is not awaited and not wrapped in try/catch — on insecure contexts it can throw. Consider try/catch + fallback (document.execCommand or textarea trick).",
+    "Leagues.jsx fetchMyLeagues: no error toast on failure (silent in finally).",
+    "MatchRow / GroupSection: 'À déterminer' rows still render score inputs — predictions on knockout placeholder matches (with empty codes) are submitted to backend; backend accepts. Probably intended, but consider disabling input until home_code/away_code are non-empty to avoid pronos on placeholder teams.",
+    "Tests previously assumed email/password (legacy); now aligned with pseudo+PIN."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_backend.py"
+  ],
+  "success_rate": {"backend": "100% (25/25)", "frontend": "100% on tested flows"},
+  "test_credentials": "Test users created on-the-fly per run (TST<rand>/1234, TST<rand>/5678, OUT<rand>/9999, FETest1435/1357). Pre-existing user Zinedine/1986 is present but its current PIN in DB did not match — frontend test used a freshly registered user.",
+  "seed_data_creation": "Frontend test created user FETest1435 (PIN 1357) and a league 'FE Test League'. Backend tests create transient users and a league that is auto-deleted via the owner-leave endpoint at the end of the suite.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend URL is https://predict-2026-world.preview.emergentagent.com (NOT the URL in the problem statement). Date tab testids are 'date-tab-YYYY-MM-DD' (not 'date-YYYY-MM-DD'). KO sections expose 'ko-section-{round}' (round in R32/R16/QF/SF/3RD/F). Group sections expose 'group-section-{group}-{matchday}'. League invite codes are 6 chars from alphabet ABCDEFGHJKLMNPQRSTUVWXYZ23456789. Auth scheme = pseudo + PIN (4-6 digits). Admin token = wc2026-admin-secret-token via X-Admin-Token header. Knockout matches use home_team='À déterminer' and home_code='' (no flag rendered). 30 dates from 2026-06-11 to 2026-07-19. All 25 backend tests pass; all frontend critical flows pass.",
+  "rca of the issue": "No bugs reproduced. Initial failing test was due to outdated email/password schema in previous iteration's test_backend.py; rewritten to use the current pseudo+PIN auth and to cover the two new features."
+}

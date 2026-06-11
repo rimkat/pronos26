@@ -104,10 +104,12 @@ export default function MatchesPage() {
         <div className="mt-2" data-testid="matches-list">
           {groups.map((g) => (
             <GroupSection
-              key={`${g.group}-${g.matchday}`}
-              group={g.group}
-              matchday={g.matchday}
-              matches={g.matches}
+              key={
+                g.phase === "knockout"
+                  ? `KO-${g.round}`
+                  : `${g.group}-${g.matchday}`
+              }
+              section={g}
               predictionsMap={predictionsMap}
             />
           ))}

@@ -160,6 +160,61 @@ def build_group_stage_matches() -> list[dict]:
 
     # On force les 3 affiches du brief à des valeurs précises
     _force_brief_matches(matches)
+    # Ajoute phase="group" sur chaque match
+    for m in matches:
+        m["phase"] = "group"
+        m["round"] = None
+    return matches
+
+
+# ------------------------------------------------------------------
+# Phase à élimination directe (placeholders)
+# ------------------------------------------------------------------
+
+KNOCKOUT_ROUNDS = [
+    # (round_key, label, nb_matches, date_start_offset, daily_count)
+    ("R32", "1/16 de finale", 16, 16),   # 27 juin -> +16 jours après 11 juin
+    ("R16", "1/8 de finale", 8, 22),     # 3 juillet
+    ("QF",  "1/4 de finale", 4, 28),     # 9 juillet
+    ("SF",  "1/2 finale",     2, 33),    # 14 juillet
+    ("3RD", "Match pour la 3e place", 1, 37),  # 18 juillet
+    ("F",   "Finale",         1, 38),    # 19 juillet
+]
+
+
+def build_knockout_matches() -> list[dict]:
+    """
+    Génère 32 matchs placeholders pour la phase à élimination directe.
+    Les équipes sont 'TBD' et seront mises à jour lorsque la phase de groupes sera terminée.
+    """
+    matches = []
+    base = datetime(2026, 6, 11)
+
+    for round_key, label, nb, date_offset in KNOCKOUT_ROUNDS:
+        for i in range(nb):
+            day = base + timedelta(days=date_offset + (i // 2))
+            hour = 21 if i % 2 == 0 else 0
+            display_day = day if hour >= 6 else day + timedelta(days=0)
+            display_date = display_day.strftime("%Y-%m-%d")
+            kickoff_str = _utc_from_paris(day.strftime("%Y-%m-%d"), hour)
+            matches.append({
+                "home_team": f"À déterminer",
+                "home_code": "",
+                "away_team": f"À déterminer",
+                "away_code": "",
+                "group": round_key,
+                "matchday": i + 1,
+                "kickoff_utc": kickoff_str,
+                "display_date": display_date,
+                "kickoff_hour_paris": hour,
+                "broadcast_channels": "beIN Sports 1, TF1" if round_key in ("SF", "F", "3RD") else "beIN Sports 1",
+                "status": "scheduled",
+                "home_score_actual": None,
+                "away_score_actual": None,
+                "phase": "knockout",
+                "round": round_key,
+                "round_label": label,
+            })
     return matches
 
 

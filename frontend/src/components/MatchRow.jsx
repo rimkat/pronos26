@@ -135,13 +135,19 @@ export default function MatchRow({ match, prediction }) {
 function TeamLine({ name, code, score }) {
   return (
     <div className="flex items-center gap-2">
-      <img
-        src={flagUrl(code)}
-        alt={name}
-        className="w-6 h-4 sm:w-7 sm:h-5 object-cover rounded-[2px] ring-1 ring-border"
-        loading="lazy"
-      />
-      <span className="font-bold text-sm sm:text-[15px] truncate">{name}</span>
+      {code ? (
+        <img
+          src={flagUrl(code)}
+          alt={name}
+          className="w-6 h-4 sm:w-7 sm:h-5 object-cover rounded-[2px] ring-1 ring-border"
+          loading="lazy"
+        />
+      ) : (
+        <div className="w-6 h-4 sm:w-7 sm:h-5 rounded-[2px] ring-1 ring-dashed ring-border bg-muted/30" />
+      )}
+      <span className={`font-bold text-sm sm:text-[15px] truncate ${!code ? "text-muted-foreground italic" : ""}`}>
+        {name}
+      </span>
       {score !== null && score !== undefined && (
         <span className="ml-auto display text-base font-black tabular-nums">{score}</span>
       )}

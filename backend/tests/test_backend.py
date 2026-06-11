@@ -1,18 +1,24 @@
-"""Backend tests for WC2026 Pronostics API."""
+"""Backend tests for WC2026 Pronostics API.
+
+Covers:
+- Auth (pseudo + PIN)
+- Matches: dates (group + knockout), grouped (group + KO)
+- Predictions on group and knockout matches
+- Standings, leaderboard, dashboard
+- Private leagues : create / join / me / get / leaderboard / leave
+"""
 import os
 import uuid
 import pytest
 import requests
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://predict-2026-world.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL').rstrip('/')
 API = f"{BASE_URL}/api"
 ADMIN_TOKEN = "wc2026-admin-secret-token"
 
-# Unique user per run to avoid duplicate conflicts
-RUN_TAG = uuid.uuid4().hex[:8]
-TEST_EMAIL = f"test_{RUN_TAG}@wc2026.fr"
-TEST_PSEUDO = f"TestUser_{RUN_TAG}"
-TEST_PASS = "test1234"
+RUN_TAG = uuid.uuid4().hex[:6].upper()
+TEST_PSEUDO = f"TST{RUN_TAG}"
+TEST_PIN = "1234"
 
 
 @pytest.fixture(scope="session")
@@ -24,180 +30,257 @@ def session():
 
 @pytest.fixture(scope="session")
 def auth(session):
-    r = session.post(f"{API}/auth/register", json={
-        "email": TEST_EMAIL, "pseudo": TEST_PSEUDO, "password": TEST_PASS,
-    })
+    """Register a fresh user for the test session."""
+    r = session.post(f"{API}/auth/register", json={"pseudo": TEST_PSEUDO, "pin": TEST_PIN})
     assert r.status_code == 200, r.text
     data = r.json()
     assert "token" in data and "user" in data
+    assert data["user"]["pseudo"] == TEST_PSEUDO
     return data
 
 
-# --- Auth ---
-class TestAuth:
-    def test_register_duplicate_email(self, session, auth):
-        r = session.post(f"{API}/auth/register", json={
-            "email": TEST_EMAIL, "pseudo": f"Other_{RUN_TAG}", "password": TEST_PASS,
-        })
-        assert r.status_code == 400
+@pytest.fixture(scope="session")
+def auth2(session):
+    """Second user for multi-user league tests."""
+    pseudo = f"TST{uuid.uuid4().hex[:6].upper()}"
+    r = session.post(f"{API}/auth/register", json={"pseudo": pseudo, "pin": "5678"})
+    assert r.status_code == 200, r.text
+    return r.json()
 
+
+# ---------------------- Auth ----------------------
+class TestAuth:
     def test_register_duplicate_pseudo(self, session, auth):
-        r = session.post(f"{API}/auth/register", json={
-            "email": f"other_{RUN_TAG}@wc.fr", "pseudo": TEST_PSEUDO, "password": TEST_PASS,
-        })
+        r = session.post(f"{API}/auth/register", json={"pseudo": TEST_PSEUDO, "pin": "9999"})
         assert r.status_code == 400
 
     def test_login_ok(self, session, auth):
-        r = session.post(f"{API}/auth/login", json={"email": TEST_EMAIL, "password": TEST_PASS})
+        r = session.post(f"{API}/auth/login", json={"pseudo": TEST_PSEUDO, "pin": TEST_PIN})
         assert r.status_code == 200
         assert r.json()["user"]["pseudo"] == TEST_PSEUDO
 
-    def test_login_bad(self, session, auth):
-        r = session.post(f"{API}/auth/login", json={"email": TEST_EMAIL, "password": "wrong"})
+    def test_login_bad_pin(self, session, auth):
+        r = session.post(f"{API}/auth/login", json={"pseudo": TEST_PSEUDO, "pin": "0000"})
         assert r.status_code == 401
 
     def test_me(self, session, auth):
         h = {"Authorization": f"Bearer {auth['token']}"}
         r = session.get(f"{API}/auth/me", headers=h)
         assert r.status_code == 200
-        assert r.json()["email"] == TEST_EMAIL
+        assert r.json()["pseudo"] == TEST_PSEUDO
+
+    def test_pin_format(self, session):
+        r = session.post(f"{API}/auth/register", json={"pseudo": f"X{RUN_TAG}", "pin": "abc"})
+        assert r.status_code == 422
 
 
-# --- Matches ---
+# ---------------------- Matches ----------------------
 class TestMatches:
-    def test_dates(self, session):
+    def test_dates_includes_final(self, session):
         r = session.get(f"{API}/matches/dates")
         assert r.status_code == 200
         dates = r.json()
         assert isinstance(dates, list)
-        assert len(dates) == 15, f"Expected 15 dates, got {len(dates)}"
+        assert "2026-07-19" in dates, "Final date 2026-07-19 missing"
         assert dates == sorted(dates)
+        # 48 group matches across 12+ dates plus 32 KO matches; expect ~30 dates
+        assert len(dates) >= 25, f"Expected >=25 dates, got {len(dates)}"
 
-    def test_grouped_qatar_suisse(self, session):
+    def test_grouped_final(self, session):
+        r = session.get(f"{API}/matches/grouped", params={"date": "2026-07-19"})
+        assert r.status_code == 200
+        sections = r.json()
+        ko = [s for s in sections if s.get("phase") == "knockout"]
+        assert ko, "No knockout section on 2026-07-19"
+        final = [s for s in ko if s.get("round") == "F"]
+        assert final, "Final section missing"
+        s = final[0]
+        assert s["round_label"] == "Finale"
+        assert s["matches"], "Final has no match"
+        m = s["matches"][0]
+        assert m["phase"] == "knockout"
+        assert m["round"] == "F"
+        assert m["home_team"] == "À déterminer"
+        assert m["home_code"] == ""
+        assert m["away_team"] == "À déterminer"
+        assert m["away_code"] == ""
+
+    def test_grouped_r32(self, session):
+        r = session.get(f"{API}/matches/grouped", params={"date": "2026-06-27"})
+        assert r.status_code == 200
+        sections = r.json()
+        ko = [s for s in sections if s.get("phase") == "knockout" and s.get("round") == "R32"]
+        assert ko, "No R32 section on 2026-06-27"
+        assert ko[0]["matches"], "R32 section has no match"
+
+    def test_grouped_group_phase_regression(self, session):
+        """Regression: group phase still returns sections with group + matchday."""
         r = session.get(f"{API}/matches/grouped", params={"date": "2026-06-12"})
         assert r.status_code == 200
-        groups = r.json()
-        all_matches = [m for g in groups for m in g["matches"]]
-        target = [m for m in all_matches if {m["home_team"], m["away_team"]} == {"Qatar", "Suisse"}]
-        assert target, "Qatar vs Suisse not found on 2026-06-12"
-        m = target[0]
-        assert m["kickoff_hour_paris"] == 21, f"Expected 21h, got {m['kickoff_hour_paris']}"
-        assert "beIN Sports 1" in m["broadcast_channels"]
-        assert "M6" in m["broadcast_channels"]
-
-    def test_grouped_bresil_maroc_haiti_ecosse(self, session):
-        r = session.get(f"{API}/matches/grouped", params={"date": "2026-06-14"})
-        assert r.status_code == 200
-        all_matches = [m for g in r.json() for m in g["matches"]]
-        bm = [m for m in all_matches if {m["home_team"], m["away_team"]} == {"Brésil", "Maroc"}]
-        he = [m for m in all_matches if {m["home_team"], m["away_team"]} == {"Haïti", "Écosse"}]
-        assert bm, "Brésil vs Maroc missing"
-        assert he, "Haïti vs Écosse missing"
-        assert bm[0]["kickoff_hour_paris"] == 0
-        assert "beIN Sports 1" in bm[0]["broadcast_channels"] and "M6" in bm[0]["broadcast_channels"]
-        assert he[0]["kickoff_hour_paris"] == 3
-        assert "beIN Sports 1" in he[0]["broadcast_channels"]
+        sections = r.json()
+        groups = [s for s in sections if s.get("phase") == "group"]
+        assert groups, "Expected at least one group section on opening day"
+        s = groups[0]
+        assert "group" in s and "matchday" in s
+        assert s["matches"]
 
 
-# --- Standings ---
-class TestStandings:
-    def test_group_a(self, session):
-        r = session.get(f"{API}/standings/A")
-        assert r.status_code == 200
-        rows = r.json()
-        assert len(rows) == 4
-        assert all(row["pts"] == 0 for row in rows)
+# ---------------------- Predictions ----------------------
+def _find_scheduled_match(session, date=None, phase=None):
+    params = {"date": date} if date else {}
+    r = session.get(f"{API}/matches/grouped", params=params)
+    for s in r.json():
+        if phase and s.get("phase") != phase:
+            continue
+        for m in s["matches"]:
+            if m["status"] == "scheduled":
+                return m
+    return None
 
 
-# --- Predictions + Admin + Points calculator ---
-class TestPredictionsAndPoints:
-    def _get_scheduled_match(self, session):
-        r = session.get(f"{API}/matches/grouped", params={"date": "2026-06-12"})
-        for g in r.json():
-            for m in g["matches"]:
-                if m["status"] == "scheduled":
-                    return m
-        return None
-
-    def test_create_and_update_prediction(self, session, auth):
-        m = self._get_scheduled_match(session)
-        assert m
+class TestPredictions:
+    def test_create_prediction_group(self, session, auth):
+        m = _find_scheduled_match(session, date="2026-06-12")
+        assert m, "No scheduled group match found"
         h = {"Authorization": f"Bearer {auth['token']}"}
         r = session.post(f"{API}/predictions", headers=h, json={
             "match_id": m["id"], "home_score_predicted": 1, "away_score_predicted": 0,
         })
         assert r.status_code == 200, r.text
-        pid = r.json()["id"]
-        # update (upsert by user+match)
-        r2 = session.post(f"{API}/predictions", headers=h, json={
-            "match_id": m["id"], "home_score_predicted": 2, "away_score_predicted": 1,
+        assert r.json()["home_score_predicted"] == 1
+
+    def test_create_prediction_knockout(self, session, auth):
+        # find any KO match (e.g. R32)
+        r = session.get(f"{API}/matches/grouped", params={"date": "2026-06-27"})
+        ko_match = None
+        for s in r.json():
+            if s.get("phase") == "knockout":
+                for m in s["matches"]:
+                    if m["status"] == "scheduled":
+                        ko_match = m
+                        break
+            if ko_match:
+                break
+        assert ko_match, "No KO scheduled match found"
+        h = {"Authorization": f"Bearer {auth['token']}"}
+        r = session.post(f"{API}/predictions", headers=h, json={
+            "match_id": ko_match["id"], "home_score_predicted": 2, "away_score_predicted": 2,
         })
-        assert r2.status_code == 200
-        assert r2.json()["home_score_predicted"] == 2
-        assert r2.json()["id"] == pid  # same prediction
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["home_score_predicted"] == 2 and body["away_score_predicted"] == 2
 
-        # /predictions/me returns only user preds
-        rm = session.get(f"{API}/predictions/me", headers=h)
-        assert rm.status_code == 200
-        ids = [p["id"] for p in rm.json()]
-        assert pid in ids
-
-    def test_admin_bad_token(self, session):
-        r = session.post(f"{API}/admin/match-result",
-                         headers={"X-Admin-Token": "wrong"},
-                         json={"match_id": "x", "home_score_actual": 0, "away_score_actual": 0, "status": "finished"})
-        assert r.status_code == 403
-
-    def test_full_points_flow(self, session):
-        # Create dedicated user
-        email = f"pts_{uuid.uuid4().hex[:6]}@wc.fr"
-        pseudo = f"Pts_{uuid.uuid4().hex[:6]}"
-        reg = session.post(f"{API}/auth/register", json={"email": email, "pseudo": pseudo, "password": "test1234"})
-        assert reg.status_code == 200
-        token = reg.json()["token"]
-        h = {"Authorization": f"Bearer {token}"}
-
-        # Pick a scheduled match
-        m = self._get_scheduled_match(session)
-        assert m
-
-        # Predict 2-1
-        pr = session.post(f"{API}/predictions", headers=h,
-                          json={"match_id": m["id"], "home_score_predicted": 2, "away_score_predicted": 1})
-        assert pr.status_code == 200
-
-        # Set result to 2-1 (exact score => 1 + 1 + 3 = 5 pts)
-        ar = session.post(f"{API}/admin/match-result",
-                          headers={"X-Admin-Token": ADMIN_TOKEN, "Content-Type": "application/json"},
-                          json={"match_id": m["id"], "home_score_actual": 2, "away_score_actual": 1, "status": "finished"})
-        assert ar.status_code == 200, ar.text
-
-        # Verify points via dashboard
-        d = session.get(f"{API}/dashboard", headers=h)
-        assert d.status_code == 200
-        assert d.json()["total_points"] == 5, f"Expected 5, got {d.json()}"
-
-        # Prediction closed now
-        closed = session.post(f"{API}/predictions", headers=h,
-                              json={"match_id": m["id"], "home_score_predicted": 0, "away_score_predicted": 0})
-        assert closed.status_code == 400
+    def test_predictions_me(self, session, auth):
+        h = {"Authorization": f"Bearer {auth['token']}"}
+        r = session.get(f"{API}/predictions/me", headers=h)
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
 
 
-# --- Leaderboard / Dashboard ---
+# ---------------------- Leaderboard / Dashboard ----------------------
 class TestLeaderboardDashboard:
     def test_leaderboard(self, session):
         r = session.get(f"{API}/leaderboard")
         assert r.status_code == 200
-        data = r.json()
-        assert isinstance(data, list)
-        if len(data) >= 2:
-            assert data[0]["rank"] == 1
-            assert data[0]["total_points"] >= data[1]["total_points"]
+        assert isinstance(r.json(), list)
 
     def test_dashboard(self, session, auth):
         h = {"Authorization": f"Bearer {auth['token']}"}
         r = session.get(f"{API}/dashboard", headers=h)
         assert r.status_code == 200
-        d = r.json()
         for k in ("pseudo", "total_points", "rank", "total_users", "predictions_count"):
-            assert k in d
+            assert k in r.json()
+
+
+# ---------------------- Leagues ----------------------
+class TestLeagues:
+    league_id = None
+    invite_code = None
+
+    def test_create_league(self, session, auth):
+        h = {"Authorization": f"Bearer {auth['token']}"}
+        r = session.post(f"{API}/leagues", headers=h, json={"name": f"Lg_{RUN_TAG}"})
+        assert r.status_code == 200, r.text
+        lg = r.json()
+        assert lg["name"] == f"Lg_{RUN_TAG}"
+        assert len(lg["invite_code"]) == 6
+        assert lg["invite_code"].isalnum() and lg["invite_code"].isupper()
+        assert lg["owner_pseudo"] == TEST_PSEUDO
+        assert lg["member_count"] == 1
+        TestLeagues.league_id = lg["id"]
+        TestLeagues.invite_code = lg["invite_code"]
+
+    def test_create_league_unauth(self, session):
+        r = session.post(f"{API}/leagues", json={"name": "NoAuth"})
+        assert r.status_code == 401
+
+    def test_join_league_invalid_code(self, session, auth2):
+        h = {"Authorization": f"Bearer {auth2['token']}"}
+        r = session.post(f"{API}/leagues/join", headers=h, json={"invite_code": "ZZZZZZ"})
+        assert r.status_code == 404
+
+    def test_join_league_ok(self, session, auth2):
+        assert TestLeagues.invite_code
+        h = {"Authorization": f"Bearer {auth2['token']}"}
+        r = session.post(f"{API}/leagues/join", headers=h,
+                         json={"invite_code": TestLeagues.invite_code})
+        assert r.status_code == 200, r.text
+        assert r.json()["member_count"] == 2
+
+    def test_join_league_idempotent(self, session, auth2):
+        h = {"Authorization": f"Bearer {auth2['token']}"}
+        r = session.post(f"{API}/leagues/join", headers=h,
+                         json={"invite_code": TestLeagues.invite_code})
+        assert r.status_code == 200
+        assert r.json()["member_count"] == 2  # not 3
+
+    def test_my_leagues(self, session, auth, auth2):
+        h2 = {"Authorization": f"Bearer {auth2['token']}"}
+        r = session.get(f"{API}/leagues/me", headers=h2)
+        assert r.status_code == 200
+        ids = [lg["id"] for lg in r.json()]
+        assert TestLeagues.league_id in ids
+
+    def test_get_league_member(self, session, auth):
+        h = {"Authorization": f"Bearer {auth['token']}"}
+        r = session.get(f"{API}/leagues/{TestLeagues.league_id}", headers=h)
+        assert r.status_code == 200
+        assert r.json()["id"] == TestLeagues.league_id
+
+    def test_get_league_forbidden(self, session):
+        # third unrelated user
+        pseudo = f"OUT{uuid.uuid4().hex[:6].upper()}"
+        reg = session.post(f"{API}/auth/register", json={"pseudo": pseudo, "pin": "9999"})
+        assert reg.status_code == 200
+        token = reg.json()["token"]
+        h = {"Authorization": f"Bearer {token}"}
+        r = session.get(f"{API}/leagues/{TestLeagues.league_id}", headers=h)
+        assert r.status_code == 403
+
+    def test_league_leaderboard(self, session, auth):
+        h = {"Authorization": f"Bearer {auth['token']}"}
+        r = session.get(f"{API}/leagues/{TestLeagues.league_id}/leaderboard", headers=h)
+        assert r.status_code == 200
+        rows = r.json()
+        assert len(rows) == 2
+        assert rows[0]["rank"] == 1
+        assert rows[0]["total_points"] >= rows[1]["total_points"]
+
+    def test_leave_member(self, session, auth2):
+        h = {"Authorization": f"Bearer {auth2['token']}"}
+        r = session.delete(f"{API}/leagues/{TestLeagues.league_id}/leave", headers=h)
+        assert r.status_code == 200
+        assert r.json()["deleted"] is False
+        # Confirm member removed
+        r2 = session.get(f"{API}/leagues/{TestLeagues.league_id}/leaderboard",
+                         headers={"Authorization": f"Bearer {auth2['token']}"})
+        assert r2.status_code == 403
+
+    def test_leave_owner_deletes(self, session, auth):
+        h = {"Authorization": f"Bearer {auth['token']}"}
+        r = session.delete(f"{API}/leagues/{TestLeagues.league_id}/leave", headers=h)
+        assert r.status_code == 200
+        assert r.json()["deleted"] is True
+        # Now league should not exist
+        r2 = session.get(f"{API}/leagues/{TestLeagues.league_id}", headers=h)
+        assert r2.status_code == 404

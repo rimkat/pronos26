@@ -24,7 +24,7 @@ from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field, ConfigDict
 
-from fixtures import build_group_stage_matches
+from fixtures import build_group_stage_matches, build_knockout_matches
 
 # ------------------------------------------------------------------
 # Configuration
@@ -139,6 +139,9 @@ class MatchOut(BaseModel):
     status: Literal["scheduled", "live", "finished"]
     home_score_actual: Optional[int] = None
     away_score_actual: Optional[int] = None
+    phase: str = "group"
+    round: Optional[str] = None
+    round_label: Optional[str] = None
 
 
 class MatchResultIn(BaseModel):
@@ -288,7 +291,7 @@ async def list_match_dates():
 
 @api.get("/matches/grouped")
 async def list_matches_grouped(date: Optional[str] = None):
-    """Retourne les matchs groupés par (group, matchday) pour la date demandée."""
+    """Retourne les matchs groupés. En phase de groupes : (group, matchday). En éliminatoire : par round."""
     query = {}
     if date:
         query["display_date"] = date
@@ -296,16 +299,38 @@ async def list_matches_grouped(date: Optional[str] = None):
 
     grouped = {}
     for m in matches:
-        key = f"{m['group']}-{m['matchday']}"
-        grouped.setdefault(key, {
-            "group": m["group"],
-            "matchday": m["matchday"],
-            "matches": [],
-        })
+        phase = m.get("phase", "group")
+        if phase == "knockout":
+            key = f"KO-{m['round']}"
+            grouped.setdefault(key, {
+                "phase": "knockout",
+                "round": m["round"],
+                "round_label": m.get("round_label", m["round"]),
+                "group": m["round"],
+                "matchday": 0,
+                "matches": [],
+            })
+        else:
+            key = f"G-{m['group']}-{m['matchday']}"
+            grouped.setdefault(key, {
+                "phase": "group",
+                "group": m["group"],
+                "matchday": m["matchday"],
+                "matches": [],
+            })
         grouped[key]["matches"].append(m)
 
-    # Tri par lettre de groupe puis par journée
-    return sorted(grouped.values(), key=lambda x: (x["group"], x["matchday"]))
+    # Tri : groupes d'abord, puis éliminatoire dans l'ordre des rounds
+    round_order = {"R32": 1, "R16": 2, "QF": 3, "SF": 4, "3RD": 5, "F": 6}
+    return sorted(
+        grouped.values(),
+        key=lambda x: (
+            x["phase"] == "knockout",
+            round_order.get(x.get("round", ""), 99) if x["phase"] == "knockout" else 0,
+            x.get("group", ""),
+            x.get("matchday", 0),
+        ),
+    )
 
 
 @api.get("/standings/{group}")
@@ -458,6 +483,136 @@ async def dashboard(user: dict = Depends(get_current_user)):
 
 
 # ------------------------------------------------------------------
+# Routes Ligues privées
+# ------------------------------------------------------------------
+import secrets as _secrets
+
+
+def _generate_invite_code() -> str:
+    """Code d'invitation de 6 caractères alphanumériques (lisibles)."""
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # sans I/O/0/1 pour lisibilité
+    return "".join(_secrets.choice(alphabet) for _ in range(6))
+
+
+class LeagueCreateIn(BaseModel):
+    name: str = Field(min_length=2, max_length=40)
+
+
+class LeagueJoinIn(BaseModel):
+    invite_code: str = Field(min_length=4, max_length=10)
+
+
+class LeagueOut(BaseModel):
+    id: str
+    name: str
+    invite_code: str
+    owner_id: str
+    owner_pseudo: str
+    member_ids: List[str]
+    member_count: int
+    created_at: str
+
+
+class LeagueMemberRow(BaseModel):
+    rank: int
+    user_id: str
+    pseudo: str
+    total_points: int
+
+
+@api.post("/leagues", response_model=LeagueOut)
+async def create_league(payload: LeagueCreateIn, user: dict = Depends(get_current_user)):
+    # Code unique (très peu de chances de collision sur 32^6)
+    for _ in range(5):
+        code = _generate_invite_code()
+        if not await db.leagues.find_one({"invite_code": code}):
+            break
+    league = {
+        "id": str(uuid.uuid4()),
+        "name": payload.name.strip(),
+        "invite_code": code,
+        "owner_id": user["id"],
+        "owner_pseudo": user["pseudo"],
+        "member_ids": [user["id"]],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.leagues.insert_one(league)
+    league.pop("_id", None)
+    return {**league, "member_count": 1}
+
+
+@api.post("/leagues/join", response_model=LeagueOut)
+async def join_league(payload: LeagueJoinIn, user: dict = Depends(get_current_user)):
+    code = payload.invite_code.strip().upper()
+    league = await db.leagues.find_one({"invite_code": code}, {"_id": 0})
+    if not league:
+        raise HTTPException(status_code=404, detail="Code d'invitation introuvable")
+    if user["id"] not in league["member_ids"]:
+        await db.leagues.update_one(
+            {"id": league["id"]},
+            {"$addToSet": {"member_ids": user["id"]}},
+        )
+        league["member_ids"].append(user["id"])
+    return {**league, "member_count": len(league["member_ids"])}
+
+
+@api.get("/leagues/me", response_model=List[LeagueOut])
+async def my_leagues(user: dict = Depends(get_current_user)):
+    leagues = await db.leagues.find({"member_ids": user["id"]}, {"_id": 0}) \
+        .sort("created_at", -1).to_list(200)
+    return [{**lg, "member_count": len(lg["member_ids"])} for lg in leagues]
+
+
+@api.get("/leagues/{league_id}", response_model=LeagueOut)
+async def get_league(league_id: str, user: dict = Depends(get_current_user)):
+    lg = await db.leagues.find_one({"id": league_id}, {"_id": 0})
+    if not lg:
+        raise HTTPException(status_code=404, detail="Ligue introuvable")
+    if user["id"] not in lg["member_ids"]:
+        raise HTTPException(status_code=403, detail="Tu n'es pas membre de cette ligue")
+    return {**lg, "member_count": len(lg["member_ids"])}
+
+
+@api.get("/leagues/{league_id}/leaderboard", response_model=List[LeagueMemberRow])
+async def league_leaderboard(league_id: str, user: dict = Depends(get_current_user)):
+    lg = await db.leagues.find_one({"id": league_id}, {"_id": 0})
+    if not lg:
+        raise HTTPException(status_code=404, detail="Ligue introuvable")
+    if user["id"] not in lg["member_ids"]:
+        raise HTTPException(status_code=403, detail="Tu n'es pas membre de cette ligue")
+    members = await db.users.find(
+        {"id": {"$in": lg["member_ids"]}},
+        {"_id": 0, "id": 1, "pseudo": 1, "total_points": 1},
+    ).to_list(500)
+    members.sort(key=lambda u: -u.get("total_points", 0))
+    return [
+        {
+            "rank": i + 1,
+            "user_id": u["id"],
+            "pseudo": u["pseudo"],
+            "total_points": u.get("total_points", 0),
+        }
+        for i, u in enumerate(members)
+    ]
+
+
+@api.delete("/leagues/{league_id}/leave")
+async def leave_league(league_id: str, user: dict = Depends(get_current_user)):
+    lg = await db.leagues.find_one({"id": league_id})
+    if not lg:
+        raise HTTPException(status_code=404, detail="Ligue introuvable")
+    if lg["owner_id"] == user["id"]:
+        # Owner quitte = supprime la ligue
+        await db.leagues.delete_one({"id": league_id})
+        return {"ok": True, "deleted": True}
+    await db.leagues.update_one(
+        {"id": league_id},
+        {"$pull": {"member_ids": user["id"]}},
+    )
+    return {"ok": True, "deleted": False}
+
+
+# ------------------------------------------------------------------
 # Startup : seed des matches + indexes
 # ------------------------------------------------------------------
 @app.on_event("startup")
@@ -466,20 +621,31 @@ async def startup_seed():
     await db.matches.create_index("display_date")
     await db.matches.create_index("group")
     await db.predictions.create_index([("user_id", 1), ("match_id", 1)], unique=True)
+    await db.leagues.create_index("invite_code", unique=True)
+    await db.leagues.create_index("member_ids")
 
-    count = await db.matches.count_documents({})
-    if count == 0:
+    # Phase de groupes
+    group_count = await db.matches.count_documents({"phase": "group"})
+    legacy_count = await db.matches.count_documents({"phase": {"$exists": False}})
+    if group_count == 0 and legacy_count == 0:
         fixtures = build_group_stage_matches()
-        docs = []
-        for m in fixtures:
-            m_copy = dict(m)
-            m_copy["id"] = str(uuid.uuid4())
-            docs.append(m_copy)
+        docs = [{**m, "id": str(uuid.uuid4())} for m in fixtures]
         if docs:
             await db.matches.insert_many(docs)
-        logger.info(f"Seeded {len(docs)} matches Coupe du Monde 2026")
-    else:
-        logger.info(f"{count} matches already in DB - skipping seed")
+        logger.info(f"Seeded {len(docs)} group-stage matches")
+    elif legacy_count > 0:
+        # Migration : matchs préexistants sans phase
+        await db.matches.update_many({"phase": {"$exists": False}}, {"$set": {"phase": "group", "round": None}})
+        logger.info(f"Migrated {legacy_count} legacy matches with phase=group")
+
+    # Phase à élimination directe
+    ko_count = await db.matches.count_documents({"phase": "knockout"})
+    if ko_count == 0:
+        ko_fixtures = build_knockout_matches()
+        docs = [{**m, "id": str(uuid.uuid4())} for m in ko_fixtures]
+        if docs:
+            await db.matches.insert_many(docs)
+        logger.info(f"Seeded {len(docs)} knockout matches")
 
 
 @app.on_event("shutdown")
