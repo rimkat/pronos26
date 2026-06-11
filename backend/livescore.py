@@ -50,6 +50,7 @@ API_FOOTBALL_HOST = os.environ.get("API_FOOTBALL_HOST", "v3.football.api-sports.
 WC_LEAGUE_ID = int(os.environ.get("API_FOOTBALL_LEAGUE_ID", "1"))
 WC_SEASON = int(os.environ.get("API_FOOTBALL_SEASON", "2026"))
 
+
 LIVE_STATUSES = {"1H", "HT", "2H", "ET", "BT", "P", "LIVE", "INT"}
 FINISHED_STATUSES = {"FT", "AET", "PEN", "AWD", "WO"}
 NOT_STARTED_STATUSES = {"NS", "TBD", "PST"}
@@ -324,6 +325,7 @@ async def sync_live_scores(db, recalculate_match_points, propagate_knockout_winn
     POST /admin/match-result.
     """
     fixtures = await _fetch_normalized_fixtures()
+    logger.info(f"DEBUG: Fixtures reçues : {fixtures}")
 
     updated = []
     for fixture in fixtures:
@@ -339,6 +341,7 @@ async def sync_live_scores(db, recalculate_match_points, propagate_knockout_winn
         home_fr = _resolve_team_fr(fixture.get("home"))
         away_fr = _resolve_team_fr(fixture.get("away"))
         if not home_fr or not away_fr:
+            logger.warning(f"DEBUG: Mapping impossible pour {fixture.get('home')} vs {fixture.get('away')}")
             continue
 
         match = await db.matches.find_one({

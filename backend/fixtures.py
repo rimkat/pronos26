@@ -84,83 +84,227 @@ GROUPS = {
     ],
 }
 
-# Chaînes TV de diffusion (cycle réaliste)
-TV_CHANNELS_CYCLE = [
-    "beIN Sports 1, TF1",
-    "beIN Sports 1, M6",
-    "beIN Sports 2",
-    "beIN Sports 1",
-    "beIN Sports 3, M6",
-    "beIN Sports 1, TF1",
-]
-
-# Heures de coup d'envoi (en heure de Paris, format 24h)
-KICKOFF_HOURS = [18, 21, 0, 3]  # 18h, 21h, minuit, 3h du matin
-
-
-def _utc_from_paris(date_str: str, hour: int) -> str:
-    """Convertit date Paris + heure -> ISO UTC. Juin = UTC+2."""
+def _utc_from_paris(date_str: str, hour: int, minute: int = 0) -> str:
+    """Convertit date Paris + heure -> ISO UTC. Juin = UTC+2 (heure d'été)."""
     # date_str: "2026-06-11", hour: 21 (heure de Paris)
-    dt_paris = datetime.fromisoformat(date_str + f"T{hour:02d}:00:00")
+    dt_paris = datetime.fromisoformat(date_str + f"T{hour:02d}:{minute:02d}:00")
     dt_utc = dt_paris - timedelta(hours=2)
     return dt_utc.replace(tzinfo=timezone.utc).isoformat()
 
 
+# ------------------------------------------------------------------
+# Calendrier réel de la phase de groupes (Coupe du Monde 2026)
+# Source : footmercato.net - calendrier officiel par groupe.
+# Pour chaque groupe : 3 journées, chacune composée de 2 matchs
+# (home, away, date Paris "YYYY-MM-DD", heure Paris, minute, chaînes TV).
+# Les dates/heures sont celles affichées en heure de Paris.
+# ------------------------------------------------------------------
+REAL_SCHEDULE: dict[str, list[list[tuple]]] = {
+    "A": [
+        [
+            ("Mexique", "Afrique du Sud", "2026-06-11", 21, 0, "beIN Sports 1, M6"),
+            ("Corée du Sud", "Tchéquie", "2026-06-12", 4, 0, "beIN Sports 1"),
+        ],
+        [
+            ("Tchéquie", "Afrique du Sud", "2026-06-18", 18, 0, "beIN Sports 1, M6"),
+            ("Mexique", "Corée du Sud", "2026-06-19", 3, 0, "beIN Sports 1"),
+        ],
+        [
+            ("Tchéquie", "Mexique", "2026-06-25", 3, 0, "beIN Sports 1"),
+            ("Afrique du Sud", "Corée du Sud", "2026-06-25", 3, 0, "beIN Sports 2"),
+        ],
+    ],
+    "B": [
+        [
+            ("Canada", "Bosnie-Herzégovine", "2026-06-12", 21, 0, "beIN Sports 1, M6"),
+            ("Qatar", "Suisse", "2026-06-13", 21, 0, "beIN Sports 1, M6"),
+        ],
+        [
+            ("Suisse", "Bosnie-Herzégovine", "2026-06-18", 21, 0, "beIN Sports 1, M6"),
+            ("Canada", "Qatar", "2026-06-19", 0, 0, "beIN Sports 1"),
+        ],
+        [
+            ("Bosnie-Herzégovine", "Qatar", "2026-06-24", 21, 0, "beIN Sports 2"),
+            ("Suisse", "Canada", "2026-06-24", 21, 0, "beIN Sports 1, M6"),
+        ],
+    ],
+    "C": [
+        [
+            ("Brésil", "Maroc", "2026-06-14", 0, 0, "beIN Sports 1, M6"),
+            ("Haïti", "Écosse", "2026-06-14", 3, 0, "beIN Sports 1"),
+        ],
+        [
+            ("Écosse", "Maroc", "2026-06-20", 0, 0, "beIN Sports 1, M6"),
+            ("Brésil", "Haïti", "2026-06-20", 2, 30, "beIN Sports 1"),
+        ],
+        [
+            ("Maroc", "Haïti", "2026-06-25", 0, 0, "beIN Sports 2"),
+            ("Écosse", "Brésil", "2026-06-25", 0, 0, "beIN Sports 1, M6"),
+        ],
+    ],
+    "D": [
+        [
+            ("États-Unis", "Paraguay", "2026-06-13", 3, 0, "beIN Sports 1"),
+            ("Australie", "Turquie", "2026-06-14", 6, 0, "beIN Sports 1"),
+        ],
+        [
+            ("États-Unis", "Australie", "2026-06-19", 21, 0, "beIN Sports 1, M6"),
+            ("Turquie", "Paraguay", "2026-06-20", 5, 0, "beIN Sports 1"),
+        ],
+        [
+            ("Turquie", "États-Unis", "2026-06-26", 4, 0, "beIN Sports 1"),
+            ("Paraguay", "Australie", "2026-06-26", 4, 0, "beIN Sports 2"),
+        ],
+    ],
+    "E": [
+        [
+            ("Allemagne", "Curaçao", "2026-06-14", 19, 0, "beIN Sports 1, M6"),
+            ("Côte d'Ivoire", "Équateur", "2026-06-15", 1, 0, "beIN Sports 1"),
+        ],
+        [
+            ("Allemagne", "Côte d'Ivoire", "2026-06-20", 22, 0, "beIN Sports 1, M6"),
+            ("Équateur", "Curaçao", "2026-06-21", 2, 0, "beIN Sports 1"),
+        ],
+        [
+            ("Curaçao", "Côte d'Ivoire", "2026-06-25", 22, 0, "beIN Sports 2"),
+            ("Équateur", "Allemagne", "2026-06-25", 22, 0, "beIN Sports 1, M6"),
+        ],
+    ],
+    "F": [
+        [
+            ("Pays-Bas", "Japon", "2026-06-14", 22, 0, "beIN Sports 1, M6"),
+            ("Suède", "Tunisie", "2026-06-15", 4, 0, "beIN Sports 1"),
+        ],
+        [
+            ("Pays-Bas", "Suède", "2026-06-20", 19, 0, "beIN Sports 1, M6"),
+            ("Tunisie", "Japon", "2026-06-21", 6, 0, "beIN Sports 1"),
+        ],
+        [
+            ("Japon", "Suède", "2026-06-26", 1, 0, "beIN Sports 2"),
+            ("Tunisie", "Pays-Bas", "2026-06-26", 1, 0, "beIN Sports 1, M6"),
+        ],
+    ],
+    "G": [
+        [
+            ("Belgique", "Égypte", "2026-06-15", 21, 0, "beIN Sports 1, M6"),
+            ("Iran", "Nouvelle-Zélande", "2026-06-16", 3, 0, "beIN Sports 1"),
+        ],
+        [
+            ("Belgique", "Iran", "2026-06-21", 21, 0, "beIN Sports 1, M6"),
+            ("Nouvelle-Zélande", "Égypte", "2026-06-22", 3, 0, "beIN Sports 1"),
+        ],
+        [
+            ("Égypte", "Iran", "2026-06-27", 5, 0, "beIN Sports 2"),
+            ("Nouvelle-Zélande", "Belgique", "2026-06-27", 5, 0, "beIN Sports 1"),
+        ],
+    ],
+    "H": [
+        [
+            ("Espagne", "Cap-Vert", "2026-06-15", 18, 0, "beIN Sports 1, M6"),
+            ("Arabie saoudite", "Uruguay", "2026-06-16", 0, 0, "beIN Sports 1, M6"),
+        ],
+        [
+            ("Espagne", "Arabie saoudite", "2026-06-21", 18, 0, "beIN Sports 1, M6"),
+            ("Uruguay", "Cap-Vert", "2026-06-22", 0, 0, "beIN Sports 1"),
+        ],
+        [
+            ("Uruguay", "Espagne", "2026-06-27", 2, 0, "beIN Sports 1"),
+            ("Cap-Vert", "Arabie saoudite", "2026-06-27", 2, 0, "beIN Sports 2"),
+        ],
+    ],
+    "I": [
+        [
+            ("France", "Sénégal", "2026-06-16", 21, 0, "beIN Sports 1, M6"),
+            ("Irak", "Norvège", "2026-06-17", 0, 0, "beIN Sports 1, M6"),
+        ],
+        [
+            ("France", "Irak", "2026-06-22", 23, 0, "beIN Sports 1, M6"),
+            ("Norvège", "Sénégal", "2026-06-23", 2, 0, "beIN Sports 1"),
+        ],
+        [
+            ("Sénégal", "Irak", "2026-06-26", 21, 0, "beIN Sports 2"),
+            ("Norvège", "France", "2026-06-26", 21, 0, "beIN Sports 1, M6"),
+        ],
+    ],
+    "J": [
+        [
+            ("Argentine", "Algérie", "2026-06-17", 3, 0, "beIN Sports 1"),
+            ("Autriche", "Jordanie", "2026-06-17", 6, 0, "beIN Sports 1"),
+        ],
+        [
+            ("Argentine", "Autriche", "2026-06-22", 19, 0, "beIN Sports 1, M6"),
+            ("Jordanie", "Algérie", "2026-06-23", 5, 0, "beIN Sports 1"),
+        ],
+        [
+            ("Jordanie", "Argentine", "2026-06-28", 4, 0, "beIN Sports 2"),
+            ("Algérie", "Autriche", "2026-06-28", 4, 0, "beIN Sports 1"),
+        ],
+    ],
+    "K": [
+        [
+            ("Portugal", "RD Congo", "2026-06-17", 19, 0, "beIN Sports 1, M6"),
+            ("Ouzbékistan", "Colombie", "2026-06-18", 4, 0, "beIN Sports 1"),
+        ],
+        [
+            ("Portugal", "Ouzbékistan", "2026-06-23", 19, 0, "beIN Sports 1, M6"),
+            ("Colombie", "RD Congo", "2026-06-24", 4, 0, "beIN Sports 1"),
+        ],
+        [
+            ("Colombie", "Portugal", "2026-06-28", 1, 30, "beIN Sports 1, M6"),
+            ("RD Congo", "Ouzbékistan", "2026-06-28", 1, 30, "beIN Sports 2"),
+        ],
+    ],
+    "L": [
+        [
+            ("Angleterre", "Croatie", "2026-06-17", 22, 0, "beIN Sports 1, M6"),
+            ("Ghana", "Panama", "2026-06-18", 1, 0, "beIN Sports 1"),
+        ],
+        [
+            ("Angleterre", "Ghana", "2026-06-23", 22, 0, "beIN Sports 1, M6"),
+            ("Panama", "Croatie", "2026-06-24", 1, 0, "beIN Sports 1"),
+        ],
+        [
+            ("Panama", "Angleterre", "2026-06-27", 23, 0, "beIN Sports 1, M6"),
+            ("Croatie", "Ghana", "2026-06-27", 23, 0, "beIN Sports 2"),
+        ],
+    ],
+}
+
+
 def build_group_stage_matches() -> list[dict]:
     """
-    Génère les 72 matchs de phase de groupes.
-    3 journées par groupe, calendrier étalé du 11 au 26 juin 2026.
+    Génère les 72 matchs de phase de groupes à partir du calendrier réel
+    (REAL_SCHEDULE), basé sur le calendrier officiel de la Coupe du Monde 2026.
     """
     matches = []
-    # Programme des journées (4 équipes : 1v2, 3v4 / 1v3, 4v2 / 4v1, 2v3)
-    matchday_pairs = [
-        [(0, 1), (2, 3)],
-        [(0, 2), (3, 1)],
-        [(3, 0), (1, 2)],
-    ]
 
-    # Dates : phase de groupes du 11 juin au 26 juin (16 jours)
-    # 12 groupes * 3 journées = 36 "blocs", on étale sur les jours
-    base_date = datetime(2026, 6, 11)
-    group_list = list(GROUPS.keys())
+    for group, teams in GROUPS.items():
+        team_by_name = {t["name"]: t for t in teams}
+        schedule = REAL_SCHEDULE.get(group)
+        if not schedule:
+            continue
 
-    counter = 0
-    for md_index in range(3):  # journée 1, 2, 3
-        for g_index, group in enumerate(group_list):
-            teams = GROUPS[group]
-            for pair_index, (i, j) in enumerate(matchday_pairs[md_index]):
-                day_offset = (md_index * 5) + (g_index // 3)
-                match_date = base_date + timedelta(days=day_offset)
-                date_str = match_date.strftime("%Y-%m-%d")
-                hour = KICKOFF_HOURS[counter % len(KICKOFF_HOURS)]
-                tv = TV_CHANNELS_CYCLE[counter % len(TV_CHANNELS_CYCLE)]
-
-                # Pour les matchs à 00h ou 03h, ils ont lieu le lendemain en heure locale
-                # mais on les classe au jour calendaire de la date Paris
-                if hour < 6:
-                    display_date = (match_date + timedelta(days=1)).strftime("%Y-%m-%d")
-                else:
-                    display_date = date_str
+        for md_index, pairs in enumerate(schedule):
+            for home_name, away_name, date_str, hour, minute, tv in pairs:
+                home = team_by_name[home_name]
+                away = team_by_name[away_name]
 
                 matches.append({
-                    "home_team": teams[i]["name"],
-                    "home_code": teams[i]["code"],
-                    "away_team": teams[j]["name"],
-                    "away_code": teams[j]["code"],
+                    "home_team": home["name"],
+                    "home_code": home["code"],
+                    "away_team": away["name"],
+                    "away_code": away["code"],
                     "group": group,
                     "matchday": md_index + 1,
-                    "kickoff_utc": _utc_from_paris(date_str, hour),
-                    "display_date": display_date,
+                    "kickoff_utc": _utc_from_paris(date_str, hour, minute),
+                    "display_date": date_str,
                     "kickoff_hour_paris": hour,
                     "broadcast_channels": tv,
                     "status": "scheduled",
                     "home_score_actual": None,
                     "away_score_actual": None,
                 })
-                counter += 1
 
-    # On force les 3 affiches du brief à des valeurs précises
-    _force_brief_matches(matches)
     # Ajoute phase="group" sur chaque match
     for m in matches:
         m["phase"] = "group"
@@ -219,36 +363,3 @@ def build_knockout_matches() -> list[dict]:
     return matches
 
 
-def _force_brief_matches(matches: list[dict]):
-    """Aligne les 3 affiches mentionnées dans le cahier des charges."""
-    # Qatar vs Suisse - Groupe B - 21h00 - beIN Sports 1, M6
-    for m in matches:
-        if m["group"] == "B" and {m["home_team"], m["away_team"]} == {"Qatar", "Suisse"}:
-            m["kickoff_hour_paris"] = 21
-            m["broadcast_channels"] = "beIN Sports 1, M6"
-            # Recalcul UTC
-            dt_paris = datetime.fromisoformat("2026-06-12T21:00:00")
-            m["kickoff_utc"] = (dt_paris - timedelta(hours=2)).replace(tzinfo=timezone.utc).isoformat()
-            m["display_date"] = "2026-06-12"
-            break
-
-    # Brésil vs Maroc - Groupe C - dim. 00h00 - beIN Sports 1, M6
-    for m in matches:
-        if m["group"] == "C" and {m["home_team"], m["away_team"]} == {"Brésil", "Maroc"}:
-            m["kickoff_hour_paris"] = 0
-            m["broadcast_channels"] = "beIN Sports 1, M6"
-            # 00h00 dimanche heure Paris = samedi 22h UTC
-            dt_paris = datetime.fromisoformat("2026-06-14T00:00:00")
-            m["kickoff_utc"] = (dt_paris - timedelta(hours=2)).replace(tzinfo=timezone.utc).isoformat()
-            m["display_date"] = "2026-06-14"
-            break
-
-    # Haïti vs Écosse - Groupe C - dim. 03h00 - beIN Sports 1
-    for m in matches:
-        if m["group"] == "C" and {m["home_team"], m["away_team"]} == {"Haïti", "Écosse"}:
-            m["kickoff_hour_paris"] = 3
-            m["broadcast_channels"] = "beIN Sports 1"
-            dt_paris = datetime.fromisoformat("2026-06-14T03:00:00")
-            m["kickoff_utc"] = (dt_paris - timedelta(hours=2)).replace(tzinfo=timezone.utc).isoformat()
-            m["display_date"] = "2026-06-14"
-            break
