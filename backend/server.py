@@ -437,21 +437,20 @@ async def list_matches_grouped(date: Optional[str] = None):
     )
 
 
-@api.get("/standings/{group}")
-async def group_standings(group: str):
-    """Calcule le classement en direct d'un groupe (4 équipes)."""
-    matches = await db.matches.find({"group": group.upper()}, {"_id": 0}).to_list(50)
+async def _compute_group_standings(group: str) -> list[dict]:
+    """Calcul interne du classement d'un groupe (réutilisé par la route et la sortie auto vers R32)."""
+    matches = await db.matches.find(
+        {"group": group.upper(), "phase": "group"}, {"_id": 0}
+    ).to_list(50)
     standings = {}
-
     for m in matches:
-        for side, opp_side in [("home", "away"), ("away", "home")]:
+        for side in ("home", "away"):
             team = m[f"{side}_team"]
             code = m[f"{side}_code"]
             standings.setdefault(team, {
                 "team": team, "code": code,
                 "pts": 0, "j": 0, "g": 0, "n": 0, "p": 0, "bp": 0, "bc": 0,
             })
-
         if m["status"] in ("live", "finished") and m["home_score_actual"] is not None:
             hs, as_ = m["home_score_actual"], m["away_score_actual"]
             standings[m["home_team"]]["j"] += 1
@@ -473,12 +472,17 @@ async def group_standings(group: str):
                 standings[m["away_team"]]["pts"] += 1
                 standings[m["home_team"]]["n"] += 1
                 standings[m["away_team"]]["n"] += 1
-
     rows = list(standings.values())
     for r in rows:
         r["diff"] = r["bp"] - r["bc"]
     rows.sort(key=lambda x: (-x["pts"], -x["diff"], -x["bp"]))
     return rows
+
+
+@api.get("/standings/{group}")
+async def group_standings(group: str):
+    """Classement en direct d'un groupe (4 équipes)."""
+    return await _compute_group_standings(group)
 
 
 # ------------------------------------------------------------------
@@ -603,6 +607,118 @@ async def set_match_teams(payload: MatchTeamsIn, _: bool = Depends(require_admin
     await db.matches.update_one({"id": payload.match_id}, {"$set": update_fields})
     updated = await db.matches.find_one({"id": payload.match_id}, {"_id": 0})
     return {"ok": True, "match": updated}
+
+
+# ------------------------------------------------------------------
+# Sortie automatique de la phase de groupes → R32
+# ------------------------------------------------------------------
+# Matrice de mapping. Slots :
+#   - ("1", "A") = vainqueur du groupe A
+#   - ("2", "B") = 2e du groupe B
+#   - ("3", k)   = k-ième meilleur 3e (1..8)
+# Total : 12 vainqueurs + 12 deuxièmes + 8 troisièmes = 32 places
+R32_MAPPING = [
+    (("1", "A"), ("2", "B")),     # R32 #1
+    (("1", "C"), ("2", "D")),     # R32 #2
+    (("1", "E"), ("2", "F")),     # R32 #3
+    (("1", "B"), ("3", 1)),       # R32 #4
+    (("1", "D"), ("3", 2)),       # R32 #5
+    (("1", "F"), ("3", 3)),       # R32 #6
+    (("2", "A"), ("2", "C")),     # R32 #7
+    (("2", "E"), ("3", 4)),       # R32 #8
+    (("1", "G"), ("2", "H")),     # R32 #9
+    (("1", "I"), ("2", "J")),     # R32 #10
+    (("1", "K"), ("2", "L")),     # R32 #11
+    (("1", "H"), ("3", 5)),       # R32 #12
+    (("1", "J"), ("3", 6)),       # R32 #13
+    (("1", "L"), ("3", 7)),       # R32 #14
+    (("2", "G"), ("2", "I")),     # R32 #15
+    (("2", "K"), ("3", 8)),       # R32 #16
+]
+
+
+@api.post("/admin/seed-r32-from-groups")
+async def seed_r32_from_groups(_: bool = Depends(require_admin)):
+    """
+    Calcule automatiquement les 16 affiches du R32 à partir des résultats de phase de groupes :
+      - 12 vainqueurs de groupe
+      - 12 deuxièmes de groupe
+      - 8 meilleurs 3es de groupe (classés sur Pts > Diff > BP)
+    Puis les place dans les R32 selon une matrice fixe (R32_MAPPING).
+
+    Pré-requis : tous les matchs de phase de groupes doivent être au statut 'finished'.
+    L'endpoint est idempotent (peut être ré-exécuté pour rafraîchir).
+    """
+    unfinished = await db.matches.count_documents({"phase": "group", "status": {"$ne": "finished"}})
+    if unfinished > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{unfinished} matchs de phase de groupes ne sont pas encore terminés",
+        )
+
+    # Calcul de tous les classements
+    standings_by_group = {}
+    for letter in "ABCDEFGHIJKL":
+        rows = await _compute_group_standings(letter)
+        if len(rows) < 3:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Groupe {letter} : moins de 3 équipes trouvées",
+            )
+        standings_by_group[letter] = rows
+
+    # Ranking des 12 troisièmes
+    thirds = []
+    for letter, rows in standings_by_group.items():
+        third = dict(rows[2])
+        third["from_group"] = letter
+        thirds.append(third)
+    thirds.sort(key=lambda x: (-x["pts"], -x["diff"], -x["bp"]))
+    top_8_thirds = thirds[:8]
+
+    def resolve_slot(slot):
+        kind, ref = slot
+        if kind == "3":
+            t = top_8_thirds[ref - 1]
+            return t["team"], t["code"]
+        # "1" ou "2" + lettre de groupe
+        rank_idx = int(kind) - 1
+        row = standings_by_group[ref][rank_idx]
+        return row["team"], row["code"]
+
+    summary = []
+    for i, (h_slot, a_slot) in enumerate(R32_MAPPING):
+        md = i + 1
+        h_name, h_code = resolve_slot(h_slot)
+        a_name, a_code = resolve_slot(a_slot)
+        await db.matches.update_one(
+            {"phase": "knockout", "round": "R32", "matchday": md},
+            {"$set": {
+                "home_team": h_name, "home_code": h_code,
+                "away_team": a_name, "away_code": a_code,
+                # Reset scores/status car l'identité des équipes change
+                "home_score_actual": None,
+                "away_score_actual": None,
+                "status": "scheduled",
+            }, "$unset": {"winner_side": ""}},
+        )
+        summary.append({
+            "matchday": md,
+            "home": h_name,
+            "home_slot": f"{h_slot[0]}{h_slot[1]}",
+            "away": a_name,
+            "away_slot": f"{a_slot[0]}{a_slot[1]}",
+        })
+
+    return {
+        "ok": True,
+        "matches_seeded": 16,
+        "best_thirds": [
+            {"rank": i + 1, "group": t["from_group"], "team": t["team"], "pts": t["pts"], "diff": t["diff"]}
+            for i, t in enumerate(top_8_thirds)
+        ],
+        "matches": summary,
+    }
 
 
 # ------------------------------------------------------------------
