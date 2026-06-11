@@ -4,7 +4,7 @@
   "rewrites": [
     {
       "source": "/(.*)",
-      "destination": "/build/$1"
+      "destination": "/index.html"
     }
   ]
 }
