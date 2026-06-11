@@ -183,7 +183,7 @@ async def _fetch_fixtures_zafronix() -> list[dict]:
             logger.error(f"Erreur appel Zafronix: {e}")
             return []
 
-    raw_matches = data.get("matches") if isinstance(data, dict) else data
+    raw_matches = data.get("data") if isinstance(data, dict) else data
     if not isinstance(raw_matches, list):
         raw_matches = []
 
