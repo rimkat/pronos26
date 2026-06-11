@@ -12,6 +12,7 @@ load_dotenv(ROOT_DIR / '.env')
 
 import os
 import uuid
+import asyncio
 import logging
 import bcrypt
 import jwt
@@ -25,6 +26,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field, ConfigDict
 
 from fixtures import build_group_stage_matches, build_knockout_matches
+import livescore
 
 # ------------------------------------------------------------------
 # Configuration
@@ -569,6 +571,13 @@ async def set_match_result(payload: MatchResultIn, _: bool = Depends(require_adm
     return {"ok": True, "match_id": payload.match_id, "status": payload.status}
 
 
+@api.post("/admin/sync-live-scores")
+async def sync_live_scores_endpoint(_: bool = Depends(require_admin)):
+    """Déclenche manuellement une synchronisation des scores depuis l'API externe."""
+    result = await livescore.sync_live_scores(db, recalculate_match_points, propagate_knockout_winner)
+    return {"ok": True, **result}
+
+
 @api.patch("/admin/match-teams")
 async def set_match_teams(payload: MatchTeamsIn, _: bool = Depends(require_admin)):
     """
@@ -916,8 +925,40 @@ async def startup_seed():
         logger.info(f"Seeded {len(docs)} knockout matches")
 
 
+# ------------------------------------------------------------------
+# Tâche de fond : synchronisation automatique des scores en direct
+# ------------------------------------------------------------------
+LIVE_SYNC_INTERVAL_SECONDS = int(os.environ.get("LIVE_SYNC_INTERVAL_SECONDS", "120"))
+_live_sync_task: Optional[asyncio.Task] = None
+
+
+async def _live_sync_loop():
+    while True:
+        try:
+            if await livescore.has_relevant_matches(db):
+                result = await livescore.sync_live_scores(db, recalculate_match_points, propagate_knockout_winner)
+                if result["updated"]:
+                    logger.info(f"Live sync: {result['updated']}")
+        except Exception as e:
+            logger.error(f"Erreur live sync: {e}")
+        await asyncio.sleep(LIVE_SYNC_INTERVAL_SECONDS)
+
+
+@app.on_event("startup")
+async def start_live_sync():
+    global _live_sync_task
+    if livescore.is_configured():
+        _live_sync_task = asyncio.create_task(_live_sync_loop())
+        logger.info(f"Tâche de synchronisation live démarrée (provider={livescore.LIVESCORE_PROVIDER})")
+    else:
+        logger.info("Aucune clé API live-score configurée - synchronisation live désactivée")
+
+
 @app.on_event("shutdown")
 async def shutdown_db_client():
+    global _live_sync_task
+    if _live_sync_task:
+        _live_sync_task.cancel()
     client.close()
 
 

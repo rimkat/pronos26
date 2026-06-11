@@ -7,19 +7,20 @@ Chaque équipe : { name, code } où code est utilisé par flagcdn.com.
 """
 from datetime import datetime, timezone, timedelta
 
-# 48 équipes réparties en 12 groupes (basé sur les qualifications et exemples du brief)
+# 48 équipes réparties en 12 groupes - tirage au sort officiel de la
+# Coupe du Monde 2026 (Canada/Mexique/États-Unis)
 GROUPS = {
     "A": [
         {"name": "Mexique", "code": "mx"},
-        {"name": "Norvège", "code": "no"},
-        {"name": "Ouzbékistan", "code": "uz"},
-        {"name": "Nouvelle-Zélande", "code": "nz"},
+        {"name": "Afrique du Sud", "code": "za"},
+        {"name": "Corée du Sud", "code": "kr"},
+        {"name": "Tchéquie", "code": "cz"},
     ],
     "B": [
+        {"name": "Canada", "code": "ca"},
+        {"name": "Bosnie-Herzégovine", "code": "ba"},
         {"name": "Qatar", "code": "qa"},
         {"name": "Suisse", "code": "ch"},
-        {"name": "Canada", "code": "ca"},
-        {"name": "Japon", "code": "jp"},
     ],
     "C": [
         {"name": "Brésil", "code": "br"},
@@ -29,57 +30,57 @@ GROUPS = {
     ],
     "D": [
         {"name": "États-Unis", "code": "us"},
-        {"name": "Iran", "code": "ir"},
+        {"name": "Paraguay", "code": "py"},
         {"name": "Australie", "code": "au"},
-        {"name": "Sénégal", "code": "sn"},
+        {"name": "Turquie", "code": "tr"},
     ],
     "E": [
-        {"name": "Argentine", "code": "ar"},
+        {"name": "Allemagne", "code": "de"},
+        {"name": "Curaçao", "code": "cw"},
+        {"name": "Côte d'Ivoire", "code": "ci"},
         {"name": "Équateur", "code": "ec"},
-        {"name": "Corée du Sud", "code": "kr"},
-        {"name": "Cameroun", "code": "cm"},
     ],
     "F": [
-        {"name": "France", "code": "fr"},
-        {"name": "Égypte", "code": "eg"},
+        {"name": "Pays-Bas", "code": "nl"},
+        {"name": "Japon", "code": "jp"},
+        {"name": "Suède", "code": "se"},
         {"name": "Tunisie", "code": "tn"},
-        {"name": "Costa Rica", "code": "cr"},
     ],
     "G": [
-        {"name": "Allemagne", "code": "de"},
         {"name": "Belgique", "code": "be"},
-        {"name": "Arabie saoudite", "code": "sa"},
-        {"name": "Pays de Galles", "code": "gb-wls"},
+        {"name": "Égypte", "code": "eg"},
+        {"name": "Iran", "code": "ir"},
+        {"name": "Nouvelle-Zélande", "code": "nz"},
     ],
     "H": [
-        {"name": "Angleterre", "code": "gb-eng"},
-        {"name": "Pologne", "code": "pl"},
-        {"name": "Afrique du Sud", "code": "za"},
-        {"name": "Danemark", "code": "dk"},
+        {"name": "Espagne", "code": "es"},
+        {"name": "Cap-Vert", "code": "cv"},
+        {"name": "Arabie saoudite", "code": "sa"},
+        {"name": "Uruguay", "code": "uy"},
     ],
     "I": [
-        {"name": "Pays-Bas", "code": "nl"},
-        {"name": "Croatie", "code": "hr"},
-        {"name": "Algérie", "code": "dz"},
-        {"name": "Ghana", "code": "gh"},
+        {"name": "France", "code": "fr"},
+        {"name": "Sénégal", "code": "sn"},
+        {"name": "Irak", "code": "iq"},
+        {"name": "Norvège", "code": "no"},
     ],
     "J": [
-        {"name": "Espagne", "code": "es"},
-        {"name": "Colombie", "code": "co"},
-        {"name": "Serbie", "code": "rs"},
+        {"name": "Argentine", "code": "ar"},
+        {"name": "Algérie", "code": "dz"},
+        {"name": "Autriche", "code": "at"},
         {"name": "Jordanie", "code": "jo"},
     ],
     "K": [
         {"name": "Portugal", "code": "pt"},
-        {"name": "Uruguay", "code": "uy"},
-        {"name": "Mali", "code": "ml"},
-        {"name": "Suède", "code": "se"},
+        {"name": "RD Congo", "code": "cd"},
+        {"name": "Ouzbékistan", "code": "uz"},
+        {"name": "Colombie", "code": "co"},
     ],
     "L": [
-        {"name": "Italie", "code": "it"},
-        {"name": "Nigeria", "code": "ng"},
-        {"name": "Paraguay", "code": "py"},
-        {"name": "Turquie", "code": "tr"},
+        {"name": "Angleterre", "code": "gb-eng"},
+        {"name": "Croatie", "code": "hr"},
+        {"name": "Ghana", "code": "gh"},
+        {"name": "Panama", "code": "pa"},
     ],
 }
 

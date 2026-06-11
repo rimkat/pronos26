@@ -35,7 +35,7 @@ export default function DashboardPage() {
             Tableau de bord
           </div>
           <h1 className="display text-3xl sm:text-4xl font-black uppercase tracking-tight mt-1">
-            Salut <span className="text-primary">{user.pseudo}</span>
+            Salam <span className="text-primary">{user.pseudo}</span>
           </h1>
         </div>
       </div>
