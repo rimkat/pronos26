@@ -178,6 +178,7 @@ async def _fetch_fixtures_zafronix() -> list[dict]:
             resp = await client.get(url, params=params, headers=headers)
             resp.raise_for_status()
             data = resp.json()
+            logger.info(f"DEBUG: Contenu brut de l'API: {data}")
         except Exception as e:
             logger.error(f"Erreur appel Zafronix: {e}")
             return []
