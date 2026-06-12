@@ -343,13 +343,23 @@ async def _fetch_fixtures_football_data() -> list[dict]:
 
         score = m.get("score") or {}
         full_time = score.get("fullTime") or {}
+        half_time = score.get("halfTime") or {}
         penalties = score.get("penalties") or {}
+
+        home_score = full_time.get("home")
+        away_score = full_time.get("away")
+        # À la mi-temps (et plus généralement en live), football-data.org ne
+        # remplit "fullTime" qu'à la fin du match : on retombe sur
+        # "halfTime" pour que le score en cours soit déjà visible.
+        if home_score is None and away_score is None:
+            home_score = half_time.get("home")
+            away_score = half_time.get("away")
 
         normalized.append({
             "home": (m.get("homeTeam") or {}).get("name"),
             "away": (m.get("awayTeam") or {}).get("name"),
-            "home_score": full_time.get("home"),
-            "away_score": full_time.get("away"),
+            "home_score": home_score,
+            "away_score": away_score,
             "status": status,
             "penalty_home": penalties.get("home"),
             "penalty_away": penalties.get("away"),
