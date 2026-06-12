@@ -298,11 +298,14 @@ async def _fetch_normalized_fixtures() -> list[dict]:
     return await _fetch_fixtures_zafronix()
 
 
-async def has_relevant_matches(db, window_hours: float = 3.0) -> bool:
+async def has_relevant_matches(db, window_hours: float = 24.0) -> bool:
     """
     Vrai s'il existe un match 'scheduled' ou 'live' dont le coup d'envoi est
-    proche de maintenant (entre -window_hours et +30 minutes), ou déjà 'live'.
-    Permet d'éviter d'appeler l'API en dehors des créneaux de match.
+    proche de maintenant (déjà commencé depuis moins de window_hours, ou
+    démarre dans moins de 30 minutes), ou déjà 'live'.
+    Permet d'éviter d'appeler l'API en dehors des créneaux de match, tout en
+    laissant le temps au fournisseur (Zafronix plan gratuit) de remonter le
+    score final avec un certain délai après le coup d'envoi.
     """
     now = datetime.now(timezone.utc)
 
