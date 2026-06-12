@@ -18,7 +18,8 @@ export default function MatchRow({ match, prediction }) {
   const { user } = useAuth();
   const isAuth = user && user.id;
   const isTBD = !match.home_code || !match.away_code;
-  const isLocked = match.status !== "scheduled" || isTBD;
+  const hasKickedOff = new Date(match.kickoff_utc).getTime() <= Date.now();
+  const isLocked = match.status !== "scheduled" || isTBD || hasKickedOff;
 
   const [home, setHome] = useState(prediction?.home_score_predicted ?? "");
   const [away, setAway] = useState(prediction?.away_score_predicted ?? "");

@@ -515,6 +515,14 @@ async def upsert_prediction(payload: PredictionIn, user: dict = Depends(get_curr
         raise HTTPException(status_code=404, detail="Match introuvable")
     if match["status"] != "scheduled":
         raise HTTPException(status_code=400, detail="Les pronostics sont clos pour ce match")
+    try:
+        kickoff = datetime.fromisoformat(match["kickoff_utc"])
+        if kickoff.tzinfo is None:
+            kickoff = kickoff.replace(tzinfo=timezone.utc)
+    except (KeyError, ValueError):
+        kickoff = None
+    if kickoff is not None and kickoff <= datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="Les pronostics sont clos pour ce match")
 
     existing = await db.predictions.find_one(
         {"user_id": user["id"], "match_id": payload.match_id}, {"_id": 0}
