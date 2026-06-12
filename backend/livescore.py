@@ -50,10 +50,22 @@ API_FOOTBALL_HOST = os.environ.get("API_FOOTBALL_HOST", "v3.football.api-sports.
 WC_LEAGUE_ID = int(os.environ.get("API_FOOTBALL_LEAGUE_ID", "1"))
 WC_SEASON = int(os.environ.get("API_FOOTBALL_SEASON", "2026"))
 
+# ------------------------------------------------------------------
+# Config football-data.org (https://www.football-data.org)
+# ------------------------------------------------------------------
+FOOTBALL_DATA_API_KEY = os.environ.get("FOOTBALL_DATA_API_KEY", "")
+FOOTBALL_DATA_BASE_URL = os.environ.get("FOOTBALL_DATA_BASE_URL", "https://api.football-data.org/v4")
+FOOTBALL_DATA_COMPETITION = os.environ.get("FOOTBALL_DATA_COMPETITION", "WC")
+
 
 LIVE_STATUSES = {"1H", "HT", "2H", "ET", "BT", "P", "LIVE", "INT"}
 FINISHED_STATUSES = {"FT", "AET", "PEN", "AWD", "WO"}
 NOT_STARTED_STATUSES = {"NS", "TBD", "PST"}
+
+# Statuts football-data.org : SCHEDULED, TIMED, IN_PLAY, PAUSED, FINISHED,
+# POSTPONED, SUSPENDED, CANCELLED
+FOOTBALL_DATA_LIVE_STATUSES = {"IN_PLAY", "PAUSED"}
+FOOTBALL_DATA_FINISHED_STATUSES = {"FINISHED", "AWARDED"}
 
 
 def is_configured() -> bool:
@@ -61,6 +73,8 @@ def is_configured() -> bool:
         return bool(ZAFRONIX_API_KEY)
     if LIVESCORE_PROVIDER == "api_football":
         return bool(API_FOOTBALL_KEY)
+    if LIVESCORE_PROVIDER == "football_data":
+        return bool(FOOTBALL_DATA_API_KEY)
     return False
 
 
@@ -137,10 +151,12 @@ EXTRA_NAME_VARIANTS = {
     "Tchéquie": ["Czech Republic", "Czechia", "Tchéquie", "Tchequie"],
     "RD Congo": ["DR Congo", "Democratic Republic of the Congo", "DR Congo (Zaire)"],
     "Côte d'Ivoire": ["Côte d'Ivoire", "Cote d'Ivoire", "Ivory Coast"],
-    "Corée du Sud": ["South Korea", "Korea Republic", "Korea, South"],
-    "États-Unis": ["USA", "United States", "United States of America"],
-    "Iran": ["IR Iran", "Iran", "Islamic Republic of Iran"],
+    "Corée du Sud": ["South Korea", "Korea Republic", "Korea, South", "Korea Republic (South Korea)"],
+    "États-Unis": ["USA", "United States", "United States of America", "USMNT"],
+    "Iran": ["IR Iran", "Iran", "Islamic Republic of Iran", "IR Iran (Islamic Republic of Iran)"],
     "Curaçao": ["Curacao", "Curaçao"],
+    "Cap-Vert": ["Cape Verde", "Cabo Verde"],
+    "Turquie": ["Turkey", "Türkiye", "Turkiye"],
 }
 
 # Index normalisé -> nom FR (utilisé en base) pour résoudre les noms venant
@@ -290,11 +306,65 @@ async def _fetch_fixtures_api_football() -> list[dict]:
 
 
 # ------------------------------------------------------------------
+# football-data.org (https://api.football-data.org)
+# ------------------------------------------------------------------
+async def _fetch_fixtures_football_data() -> list[dict]:
+    """Récupère tous les matchs de la compétition (Coupe du Monde) en un
+    seul appel. Plan gratuit : 10 req/min, scores légèrement différés."""
+    if not FOOTBALL_DATA_API_KEY:
+        logger.warning("FOOTBALL_DATA_API_KEY non configurée - sync ignorée")
+        return []
+
+    url = f"{FOOTBALL_DATA_BASE_URL}/competitions/{FOOTBALL_DATA_COMPETITION}/matches"
+    headers = {"X-Auth-Token": FOOTBALL_DATA_API_KEY}
+
+    async with httpx.AsyncClient(timeout=20) as client:
+        try:
+            resp = await client.get(url, headers=headers)
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception as e:
+            logger.error(f"Erreur appel football-data.org: {e}")
+            return []
+
+    raw_matches = data.get("matches") if isinstance(data, dict) else None
+    if not isinstance(raw_matches, list):
+        raw_matches = []
+
+    normalized = []
+    for m in raw_matches:
+        raw_status = str(m.get("status") or "").upper()
+        if raw_status in FOOTBALL_DATA_FINISHED_STATUSES:
+            status = "finished"
+        elif raw_status in FOOTBALL_DATA_LIVE_STATUSES:
+            status = "live"
+        else:
+            status = "scheduled"
+
+        score = m.get("score") or {}
+        full_time = score.get("fullTime") or {}
+        penalties = score.get("penalties") or {}
+
+        normalized.append({
+            "home": (m.get("homeTeam") or {}).get("name"),
+            "away": (m.get("awayTeam") or {}).get("name"),
+            "home_score": full_time.get("home"),
+            "away_score": full_time.get("away"),
+            "status": status,
+            "penalty_home": penalties.get("home"),
+            "penalty_away": penalties.get("away"),
+        })
+    return normalized
+
+
+# ------------------------------------------------------------------
 # Logique commune
 # ------------------------------------------------------------------
 async def _fetch_normalized_fixtures() -> list[dict]:
     if LIVESCORE_PROVIDER == "api_football":
         return await _fetch_fixtures_api_football()
+    if LIVESCORE_PROVIDER == "football_data":
+        return await _fetch_fixtures_football_data()
     return await _fetch_fixtures_zafronix()
 
 
