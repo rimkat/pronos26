@@ -164,10 +164,6 @@ class MatchOut(BaseModel):
     round_label: Optional[str] = None
 
 
-class GameScoreIn(BaseModel):
-    score: int = Field(ge=0, le=100000)
-
-
 class MatchResultIn(BaseModel):
     match_id: str
     home_score_actual: int = Field(ge=0, le=99)
@@ -567,38 +563,6 @@ async def my_predictions(user: dict = Depends(get_current_user)):
 
 
 # ------------------------------------------------------------------
-# Routes Jeu (Flappy Ballon) - score perso + classement
-# ------------------------------------------------------------------
-@api.post("/game/score")
-async def submit_game_score(payload: GameScoreIn, user: dict = Depends(get_current_user)):
-    existing = await db.game_scores.find_one({"user_id": user["id"]}, {"_id": 0})
-    if existing and existing.get("best_score", 0) >= payload.score:
-        return {"ok": True, "best_score": existing["best_score"], "is_new_best": False}
-
-    await db.game_scores.update_one(
-        {"user_id": user["id"]},
-        {"$set": {
-            "user_id": user["id"],
-            "pseudo": user["pseudo"],
-            "best_score": payload.score,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        }},
-        upsert=True,
-    )
-    return {"ok": True, "best_score": payload.score, "is_new_best": True}
-
-
-@api.get("/game/leaderboard")
-async def game_leaderboard(limit: int = 20):
-    cursor = db.game_scores.find({}, {"_id": 0}).sort("best_score", -1).limit(min(limit, 100))
-    rows = await cursor.to_list(100)
-    return [
-        {"pseudo": r["pseudo"], "best_score": r["best_score"]}
-        for r in rows
-    ]
-
-
-# ------------------------------------------------------------------
 # Routes Admin (résultats des matchs)
 # ------------------------------------------------------------------
 def require_admin(x_admin_token: Optional[str] = Header(None)):
@@ -980,8 +944,6 @@ async def startup_seed():
     await db.predictions.create_index([("user_id", 1), ("match_id", 1)], unique=True)
     await db.leagues.create_index("invite_code", unique=True)
     await db.leagues.create_index("member_ids")
-    await db.game_scores.create_index("user_id", unique=True)
-    await db.game_scores.create_index("best_score")
 
     # Phase de groupes
     group_count = await db.matches.count_documents({"phase": "group"})

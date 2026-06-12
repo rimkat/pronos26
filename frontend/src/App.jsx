@@ -10,7 +10,6 @@ import RegisterPage from "@/pages/Register";
 import DashboardPage from "@/pages/Dashboard";
 import LeaderboardPage from "@/pages/Leaderboard";
 import LeaguesPage from "@/pages/Leagues";
-import GamePage from "@/pages/Game";
 
 function AppContent() {
   const { user } = useAuth();
@@ -27,7 +26,6 @@ function AppContent() {
         <Route path="/classement" element={<LeaderboardPage />} />
         <Route path="/leaderboard" element={<LeaderboardPage />} />
         <Route path="/ligues" element={<LeaguesPage />} />
-        <Route path="/jeu" element={<GamePage />} />
       </Routes>
       <Toaster position="top-right" richColors />
     </div>
