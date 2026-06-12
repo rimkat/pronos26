@@ -719,8 +719,7 @@ R32_MAPPING = [
 ]
 
 
-@api.post("/admin/seed-r32-from-groups")
-async def seed_r32_from_groups(_: bool = Depends(require_admin)):
+async def _seed_r32_from_groups():
     """
     Calcule automatiquement les 16 affiches du R32 à partir des résultats de phase de groupes :
       - 12 vainqueurs de groupe
@@ -729,7 +728,7 @@ async def seed_r32_from_groups(_: bool = Depends(require_admin)):
     Puis les place dans les R32 selon une matrice fixe (R32_MAPPING).
 
     Pré-requis : tous les matchs de phase de groupes doivent être au statut 'finished'.
-    L'endpoint est idempotent (peut être ré-exécuté pour rafraîchir).
+    Idempotent (peut être ré-exécuté pour rafraîchir).
     """
     unfinished = await db.matches.count_documents({"phase": "group", "status": {"$ne": "finished"}})
     if unfinished > 0:
@@ -801,6 +800,14 @@ async def seed_r32_from_groups(_: bool = Depends(require_admin)):
         ],
         "matches": summary,
     }
+
+
+@api.post("/admin/seed-r32-from-groups")
+async def seed_r32_from_groups(_: bool = Depends(require_admin)):
+    """Déclenche manuellement le calcul des affiches du R32 (voir _seed_r32_from_groups).
+    Normalement inutile : ceci se fait automatiquement dès que tous les matchs de
+    groupes sont 'finished' (voir _live_sync_loop)."""
+    return await _seed_r32_from_groups()
 
 
 # ------------------------------------------------------------------
@@ -1007,6 +1014,23 @@ LIVE_SYNC_INTERVAL_SECONDS = int(os.environ.get("LIVE_SYNC_INTERVAL_SECONDS", "1
 _live_sync_task: Optional[asyncio.Task] = None
 
 
+async def _maybe_seed_r32():
+    """Si tous les matchs de groupes sont terminés et que le R32 n'a pas encore
+    été rempli (équipes 'À déterminer'), calcule automatiquement les affiches."""
+    try:
+        r32_pending = await db.matches.count_documents(
+            {"phase": "knockout", "round": "R32", "home_code": ""}
+        )
+        if r32_pending == 0:
+            return
+        unfinished = await db.matches.count_documents({"phase": "group", "status": {"$ne": "finished"}})
+        if unfinished == 0:
+            result = await _seed_r32_from_groups()
+            logger.info(f"R32 rempli automatiquement à partir des résultats de groupes: {result['matches_seeded']} affiches")
+    except Exception as e:
+        logger.error(f"Erreur seed automatique R32: {e}")
+
+
 async def _live_sync_loop():
     while True:
         try:
@@ -1014,6 +1038,7 @@ async def _live_sync_loop():
                 result = await livescore.sync_live_scores(db, recalculate_match_points, propagate_knockout_winner)
                 if result["updated"]:
                     logger.info(f"Live sync: {result['updated']}")
+            await _maybe_seed_r32()
         except Exception as e:
             logger.error(f"Erreur live sync: {e}")
         await asyncio.sleep(LIVE_SYNC_INTERVAL_SECONDS)
