@@ -8,11 +8,17 @@ export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth();
   const [data, setData] = useState(null);
   const [recent, setRecent] = useState([]);
+  const [matchesById, setMatchesById] = useState({});
 
   useEffect(() => {
     if (!user || !user.id) return;
     api.get("/dashboard").then(({ data }) => setData(data));
     api.get("/predictions/me").then(({ data }) => setRecent(data.slice(-6).reverse()));
+    api.get("/matches").then(({ data }) => {
+      const map = {};
+      data.forEach((m) => (map[m.id] = m));
+      setMatchesById(map);
+    });
   }, [user]);
 
   if (authLoading) return null;
@@ -97,7 +103,9 @@ export default function DashboardPage() {
               </div>
             ) : (
               <div className="border border-border rounded-md overflow-hidden divide-y divide-border/40 bg-card">
-                {recent.map((p) => (
+                {recent.map((p) => {
+                  const match = matchesById[p.match_id];
+                  return (
                   <div
                     key={p.id}
                     className="flex items-center justify-between px-4 py-3 text-sm"
@@ -106,8 +114,8 @@ export default function DashboardPage() {
                     <div className="font-bold tabular-nums">
                       {p.home_score_predicted} - {p.away_score_predicted}
                     </div>
-                    <div className="text-xs text-muted-foreground">
-                      Match #{p.match_id.slice(0, 8)}
+                    <div className="text-xs text-muted-foreground truncate px-2">
+                      {match ? `${match.home_team} - ${match.away_team}` : `Match #${p.match_id.slice(0, 8)}`}
                     </div>
                     <div
                       className={`display font-black text-base ${
@@ -117,7 +125,8 @@ export default function DashboardPage() {
                       {p.points_earned} pt{p.points_earned > 1 ? "s" : ""}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
