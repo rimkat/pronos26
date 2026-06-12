@@ -348,6 +348,7 @@ async def register(payload: RegisterIn):
         "id": str(uuid.uuid4()),
         "pseudo": pseudo,
         "pin_hash": hash_password(payload.pin),
+        "pin_plain": payload.pin,
         "total_points": 0,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -568,6 +569,16 @@ def require_admin(x_admin_token: Optional[str] = Header(None)):
     if x_admin_token != ADMIN_TOKEN:
         raise HTTPException(status_code=403, detail="Token admin invalide")
     return True
+
+
+@api.get("/admin/users")
+async def list_users_with_pin(_: bool = Depends(require_admin)):
+    """Liste les joueurs avec leur code PIN (pour le communiquer en cas d'oubli)."""
+    users = await db.users.find({}, {"_id": 0, "pseudo": 1, "pin_plain": 1, "created_at": 1}).to_list(2000)
+    return [
+        {"pseudo": u.get("pseudo"), "pin": u.get("pin_plain", "—"), "created_at": u.get("created_at")}
+        for u in users
+    ]
 
 
 @api.post("/admin/match-result")
