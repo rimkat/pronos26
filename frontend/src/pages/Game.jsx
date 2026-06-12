@@ -107,6 +107,11 @@ export default function GamePage() {
     loadLeaderboard();
   }, []);
 
+  // Sur mobile, on remonte en haut de page pour exploiter tout l'écran
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   // État du jeu conservé dans une ref pour éviter les re-renders à chaque frame
   const state = useRef({
     y: HEIGHT / 2,
@@ -260,24 +265,27 @@ export default function GamePage() {
   }, [status]);
 
   return (
-    <div className="max-w-md mx-auto px-3 sm:px-6 pb-16 mt-4">
-      <div className="text-center mb-3">
-        <h1 className="display text-2xl sm:text-3xl font-black uppercase tracking-tight">
+    <div className="max-w-md mx-auto px-3 sm:px-6 pb-16 mt-1 sm:mt-4">
+      <div className="text-center mb-1 sm:mb-3">
+        <h1 className="display text-lg sm:text-3xl font-black uppercase tracking-tight">
           Flappy <span className="text-primary">Ballon</span>
         </h1>
-        <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+        <p className="hidden sm:block text-xs sm:text-sm text-muted-foreground mt-1">
           Le ballon du Maroc traverse les buts USA · Canada · Mexique 🇲🇦
         </p>
       </div>
 
-      <div className="flex items-center justify-between mb-2 text-sm font-bold uppercase tracking-wide">
+      <div className="flex items-center justify-between mb-1 sm:mb-2 text-sm font-bold uppercase tracking-wide">
         <span>Score : {score}</span>
         <span className="text-muted-foreground">Record : {best}</span>
       </div>
 
       <div
         className="relative mx-auto rounded-lg overflow-hidden border border-border cursor-pointer select-none"
-        style={{ width: WIDTH, maxWidth: "100%" }}
+        style={{
+          width: `min(100%, calc((100vh - 230px) * ${WIDTH} / ${HEIGHT}))`,
+          aspectRatio: `${WIDTH} / ${HEIGHT}`,
+        }}
         onClick={flap}
         onTouchStart={(e) => {
           e.preventDefault();
@@ -289,7 +297,7 @@ export default function GamePage() {
           ref={canvasRef}
           width={WIDTH}
           height={HEIGHT}
-          className="block w-full h-auto"
+          className="block w-full h-full"
           data-testid="flappy-game-canvas"
         />
 
@@ -311,12 +319,12 @@ export default function GamePage() {
         )}
       </div>
 
-      <p className="text-center text-[11px] text-muted-foreground mt-3">
+      <p className="hidden sm:block text-center text-[11px] text-muted-foreground mt-3">
         Espace / clic / tap pour sauter. Évite les poteaux !
       </p>
 
       {leaderboard.length > 0 && (
-        <div className="mt-6 rounded-lg border border-border overflow-hidden">
+        <div className="hidden sm:block mt-6 rounded-lg border border-border overflow-hidden">
           <div className="flex items-center gap-2 px-3 py-2 bg-secondary">
             <Trophy className="h-4 w-4 text-primary" />
             <span className="text-sm font-black uppercase tracking-wide">Classement Flappy Ballon</span>
