@@ -82,16 +82,31 @@ export default function MatchRow({ match, prediction }) {
     return <span className="w-3.5 h-3.5" />;
   };
 
+  const isFinished = match.status === "finished";
+  const isLive = match.status === "live";
+
   return (
     <div
       data-testid={`match-row-${match.id}`}
-      className="flex items-center gap-2 sm:gap-3 py-3 px-3 border-b border-border/40 hover:bg-secondary/40 transition-colors"
+      className={`flex items-center gap-2 sm:gap-3 py-3 px-3 border-b border-border/40 transition-colors ${
+        isFinished
+          ? "bg-muted/40 text-muted-foreground"
+          : isLive
+          ? "bg-primary/10 ring-1 ring-inset ring-primary/40"
+          : "hover:bg-secondary/40"
+      }`}
     >
       {/* Heure + chaînes */}
       <div className="flex flex-col items-center min-w-[58px] sm:min-w-[72px]">
-        <span className="display text-base sm:text-lg font-bold leading-none">
-          {formatHour(match.kickoff_hour_paris)}
-        </span>
+        {isLive ? (
+          <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-primary animate-pulse">
+            ● Live
+          </span>
+        ) : (
+          <span className="display text-base sm:text-lg font-bold leading-none">
+            {formatHour(match.kickoff_hour_paris)}
+          </span>
+        )}
         <span className="text-[9px] sm:text-[10px] text-muted-foreground mt-1 text-center leading-tight max-w-[70px] truncate">
           {match.broadcast_channels}
         </span>

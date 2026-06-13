@@ -106,13 +106,20 @@ export default function DashboardPage() {
                 {recent.map((p) => {
                   const match = matchesById[p.match_id];
                   const isFinished = match?.status === "finished";
+                  const isLive = match?.status === "live";
                   return (
                   <div
                     key={p.id}
-                    className="flex items-center justify-between px-4 py-3 text-sm gap-2"
+                    className={`flex items-center justify-between px-4 py-3 text-sm gap-2 ${
+                      isFinished
+                        ? "bg-muted/40 text-muted-foreground"
+                        : isLive
+                        ? "bg-primary/10 ring-1 ring-inset ring-primary/40"
+                        : ""
+                    }`}
                     data-testid={`recent-pred-${p.id}`}
                   >
-                    <div className="flex flex-col items-start">
+                    <div className="flex flex-col items-center text-center">
                       <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
                         Ton prono
                       </span>
@@ -120,11 +127,19 @@ export default function DashboardPage() {
                         {p.home_score_predicted} - {p.away_score_predicted}
                       </span>
                     </div>
-                    <div className="text-xs text-muted-foreground truncate px-2 text-center flex-1">
-                      {match ? `${match.home_team} - ${match.away_team}` : `Match #${p.match_id.slice(0, 8)}`}
+                    <div className="text-xs text-muted-foreground px-2 text-center flex-1 flex flex-col items-center leading-tight">
+                      {match ? (
+                        <>
+                          <span className="truncate max-w-full">{match.home_team}</span>
+                          <span className="text-[10px] text-muted-foreground/60">vs</span>
+                          <span className="truncate max-w-full">{match.away_team}</span>
+                        </>
+                      ) : (
+                        `Match #${p.match_id.slice(0, 8)}`
+                      )}
                     </div>
                     {isFinished ? (
-                      <div className="flex flex-col items-end">
+                      <div className="flex flex-col items-center text-center">
                         <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
                           Résultat
                         </span>
@@ -133,8 +148,8 @@ export default function DashboardPage() {
                         </span>
                       </div>
                     ) : (
-                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground px-2">
-                        À venir
+                      <div className={`text-[10px] uppercase tracking-wider px-2 ${isLive ? "text-primary font-bold animate-pulse" : "text-muted-foreground"}`}>
+                        {isLive ? "En cours" : "À venir"}
                       </div>
                     )}
                     <div
