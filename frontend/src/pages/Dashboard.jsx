@@ -105,24 +105,50 @@ export default function DashboardPage() {
               <div className="border border-border rounded-md overflow-hidden divide-y divide-border/40 bg-card">
                 {recent.map((p) => {
                   const match = matchesById[p.match_id];
+                  const isFinished = match?.status === "finished";
                   return (
                   <div
                     key={p.id}
-                    className="flex items-center justify-between px-4 py-3 text-sm"
+                    className="flex items-center justify-between px-4 py-3 text-sm gap-2"
                     data-testid={`recent-pred-${p.id}`}
                   >
-                    <div className="font-bold tabular-nums">
-                      {p.home_score_predicted} - {p.away_score_predicted}
+                    <div className="flex flex-col items-start">
+                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                        Ton prono
+                      </span>
+                      <span className="font-bold tabular-nums">
+                        {p.home_score_predicted} - {p.away_score_predicted}
+                      </span>
                     </div>
-                    <div className="text-xs text-muted-foreground truncate px-2">
+                    <div className="text-xs text-muted-foreground truncate px-2 text-center flex-1">
                       {match ? `${match.home_team} - ${match.away_team}` : `Match #${p.match_id.slice(0, 8)}`}
                     </div>
+                    {isFinished ? (
+                      <div className="flex flex-col items-end">
+                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                          Résultat
+                        </span>
+                        <span className="font-bold tabular-nums">
+                          {match.home_score_actual} - {match.away_score_actual}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground px-2">
+                        À venir
+                      </div>
+                    )}
                     <div
-                      className={`display font-black text-base ${
+                      className={`display font-black text-base text-right min-w-[3.5rem] ${
                         p.points_earned > 0 ? "text-primary" : "text-muted-foreground"
                       }`}
                     >
-                      {p.points_earned} pt{p.points_earned > 1 ? "s" : ""}
+                      {isFinished ? (
+                        <>
+                          {p.points_earned} pt{p.points_earned > 1 ? "s" : ""}
+                        </>
+                      ) : (
+                        "—"
+                      )}
                     </div>
                   </div>
                   );
