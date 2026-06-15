@@ -614,6 +614,13 @@ async def sync_live_scores_endpoint(_: bool = Depends(require_admin)):
     result = await livescore.sync_live_scores(db, recalculate_match_points, propagate_knockout_winner)
     return {"ok": True, **result}
 
+@api.post("/admin/recalculate-all-points")
+async def recalculate_all_points(_: bool = Depends(require_admin)):
+    """Recalcule les points de tous les matchs finished."""
+    matches = await db.matches.find({"status": "finished"}).to_list(1000)
+    for match in matches:
+        await recalculate_match_points(match["id"])
+    return {"recalculated": len(matches)}
 
 @api.patch("/admin/match-teams")
 async def set_match_teams(payload: MatchTeamsIn, _: bool = Depends(require_admin)):
