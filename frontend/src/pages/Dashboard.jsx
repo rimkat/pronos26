@@ -13,7 +13,7 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!user || !user.id) return;
     api.get("/dashboard").then(({ data }) => setData(data));
-    api.get("/predictions/me").then(({ data }) => setRecent(data.slice(-6).reverse()));
+    api.get("/predictions/me").then(({ data }) => setRecent(data.reverse()));
     api.get("/matches").then(({ data }) => {
       const map = {};
       data.forEach((m) => (map[m.id] = m));
