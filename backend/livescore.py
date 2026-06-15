@@ -211,14 +211,20 @@ async def _fetch_fixtures_zafronix() -> list[dict]:
         away_score = m.get("awayScore", m.get("away_score"))
 
         raw_status = str(m.get("status") or "").lower()
+        is_finished_flag = m.get("finalized") or m.get("finished") or m.get("is_finished")
+
         if raw_status in ("live", "in_play", "in_progress", "1h", "2h", "ht"):
             status = "live"
-        elif raw_status in ("finished", "final", "ft", "completed") or m.get("finalized"):
+        elif raw_status in ("finished", "final", "ft", "completed") or is_finished_flag:
+            status = "finished"
+        elif home_score is not None and away_score is not None and (home_score > 0 or away_score > 0):
             status = "finished"
         elif home_score is not None and away_score is not None:
-            # Plan gratuit Zafronix : pas de statut live en temps réel,
-            # on considère qu'un score renseigné = match terminé.
-            status = "finished"
+            kickoff = m.get("kickoffTime") or m.get("date") or m.get("matchDate") or ""
+            if kickoff and kickoff < datetime.now(timezone.utc).isoformat():
+                status = "finished"
+            else:
+                status = "scheduled"
         else:
             status = "scheduled"
 
