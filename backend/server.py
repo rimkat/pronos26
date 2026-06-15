@@ -615,7 +615,7 @@ async def sync_live_scores_endpoint(_: bool = Depends(require_admin)):
     return {"ok": True, **result}
 
 @api.post("/admin/recalculate-all-points")
-async def recalculate_all_points(_: bool = Depends(require_admin)):
+async def recalculate_all_points():
     """Recalcule les points de tous les matchs finished."""
     matches = await db.matches.find({"status": "finished"}).to_list(1000)
     for match in matches:
