@@ -157,6 +157,8 @@ EXTRA_NAME_VARIANTS = {
     "Curaçao": ["Curacao", "Curaçao"],
     "Cap-Vert": ["Cape Verde", "Cabo Verde"],
     "Turquie": ["Turkey", "Türkiye", "Turkiye"],
+  "Bosnie-Herzégovine": ["Bosnia and Herzegovina", "Bosnia-Herzegovina", "Bosnia & Herzegovina"],
+"Cap-Vert": ["Cape Verde", "Cabo Verde", "Cape Verde Islands"],
 }
 
 # Index normalisé -> nom FR (utilisé en base) pour résoudre les noms venant
