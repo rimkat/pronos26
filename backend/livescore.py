@@ -149,17 +149,15 @@ def _normalize_name(s: str) -> str:
 # garde parfois les noms avec accents/orthographe FIFA différente d'API-Football)
 EXTRA_NAME_VARIANTS = {
     "Tchéquie": ["Czech Republic", "Czechia", "Tchéquie", "Tchequie"],
-    "RD Congo": ["DR Congo", "Democratic Republic of the Congo", "DR Congo (Zaire)"],
+    "RD Congo": ["DR Congo", "Congo DR", "Democratic Republic of the Congo", "DR Congo (Zaire)", "Congo, DR"],
     "Côte d'Ivoire": ["Côte d'Ivoire", "Cote d'Ivoire", "Ivory Coast"],
     "Corée du Sud": ["South Korea", "Korea Republic", "Korea, South", "Korea Republic (South Korea)"],
     "États-Unis": ["USA", "United States", "United States of America", "USMNT"],
     "Iran": ["IR Iran", "Iran", "Islamic Republic of Iran", "IR Iran (Islamic Republic of Iran)"],
     "Curaçao": ["Curacao", "Curaçao"],
-    "Cap-Vert": ["Cape Verde", "Cabo Verde"],
+    "Cap-Vert": ["Cape Verde", "Cabo Verde", "Cape Verde Islands"],
     "Turquie": ["Turkey", "Türkiye", "Turkiye"],
-  "Bosnie-Herzégovine": ["Bosnia and Herzegovina", "Bosnia-Herzegovina", "Bosnia & Herzegovina"],
-"Cap-Vert": ["Cape Verde", "Cabo Verde", "Cape Verde Islands"],
-  "RD Congo": ["Congo DR", "DR Congo", "Congo, DR", "Democratic Republic of Congo", "République démocratique du Congo", "RD Congo"],
+    "Bosnie-Herzégovine": ["Bosnia and Herzegovina", "Bosnia-Herzegovina", "Bosnia & Herzegovina"],
 }
 
 # Index normalisé -> nom FR (utilisé en base) pour résoudre les noms venant
