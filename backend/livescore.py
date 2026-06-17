@@ -159,6 +159,7 @@ EXTRA_NAME_VARIANTS = {
     "Turquie": ["Turkey", "Türkiye", "Turkiye"],
   "Bosnie-Herzégovine": ["Bosnia and Herzegovina", "Bosnia-Herzegovina", "Bosnia & Herzegovina"],
 "Cap-Vert": ["Cape Verde", "Cabo Verde", "Cape Verde Islands"],
+  "RD Congo": ["Congo DR", "DR Congo", "Congo, DR", "Democratic Republic of Congo", "République démocratique du Congo", "RD Congo"],
 }
 
 # Index normalisé -> nom FR (utilisé en base) pour résoudre les noms venant
