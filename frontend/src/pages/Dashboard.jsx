@@ -8,18 +8,36 @@ export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth();
   const [data, setData] = useState(null);
   const [recent, setRecent] = useState([]);
+  const [predictionsRaw, setPredictionsRaw] = useState([]);
   const [matchesById, setMatchesById] = useState({});
 
   useEffect(() => {
     if (!user || !user.id) return;
     api.get("/dashboard").then(({ data }) => setData(data));
-    api.get("/predictions/me").then(({ data }) => setRecent(data.reverse()));
+    api.get("/predictions/me").then(({ data }) => setPredictionsRaw(data));
     api.get("/matches").then(({ data }) => {
       const map = {};
       data.forEach((m) => (map[m.id] = m));
       setMatchesById(map);
     });
   }, [user]);
+
+  // Trie les pronostics par date de match (kickoff_utc) une fois que les
+  // deux jeux de données (predictions + matches) sont disponibles.
+  useEffect(() => {
+    if (predictionsRaw.length === 0) {
+      setRecent([]);
+      return;
+    }
+    const sorted = [...predictionsRaw].sort((a, b) => {
+      const matchA = matchesById[a.match_id];
+      const matchB = matchesById[b.match_id];
+      const dateA = matchA?.kickoff_utc ? new Date(matchA.kickoff_utc).getTime() : 0;
+      const dateB = matchB?.kickoff_utc ? new Date(matchB.kickoff_utc).getTime() : 0;
+      return dateA - dateB; // du plus ancien au plus récent
+    });
+    setRecent(sorted);
+  }, [predictionsRaw, matchesById]);
 
   if (authLoading) return null;
   if (!user || !user.id) return <Navigate to="/login" replace />;
