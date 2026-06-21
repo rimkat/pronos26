@@ -671,23 +671,79 @@ async def set_match_teams(payload: MatchTeamsIn, _: bool = Depends(require_admin
 #   - ("3", k)   = k-ième meilleur 3e (1..8)
 # Total : 12 vainqueurs + 12 deuxièmes + 8 troisièmes = 32 places
 R32_MAPPING = [
-    (("1", "A"), ("2", "B")),     # R32 #1
-    (("1", "C"), ("2", "D")),     # R32 #2
-    (("1", "E"), ("2", "F")),     # R32 #3
-    (("1", "B"), ("3", 1)),       # R32 #4
-    (("1", "D"), ("3", 2)),       # R32 #5
-    (("1", "F"), ("3", 3)),       # R32 #6
-    (("2", "A"), ("2", "C")),     # R32 #7
-    (("2", "E"), ("3", 4)),       # R32 #8
-    (("1", "G"), ("2", "H")),     # R32 #9
-    (("1", "I"), ("2", "J")),     # R32 #10
-    (("1", "K"), ("2", "L")),     # R32 #11
-    (("1", "H"), ("3", 5)),       # R32 #12
-    (("1", "J"), ("3", 6)),       # R32 #13
-    (("1", "L"), ("3", 7)),       # R32 #14
-    (("2", "G"), ("2", "I")),     # R32 #15
-    (("2", "K"), ("3", 8)),       # R32 #16
+    (("1", "E"), ("3", 1)),       # R32 #1  -- 3e parmi A/B/C/D/F
+    (("1", "I"), ("3", 2)),       # R32 #2  -- 3e parmi C/D/F/G/H
+    (("2", "A"), ("2", "B")),     # R32 #3
+    (("1", "F"), ("2", "C")),     # R32 #4
+    (("2", "K"), ("2", "L")),     # R32 #5
+    (("1", "H"), ("2", "J")),     # R32 #6
+    (("1", "D"), ("3", 3)),       # R32 #7  -- 3e parmi B/E/F/I/J
+    (("1", "G"), ("3", 4)),       # R32 #8  -- 3e parmi A/E/H/I/J
+    (("1", "C"), ("2", "F")),     # R32 #9
+    (("2", "E"), ("2", "I")),     # R32 #10
+    (("1", "A"), ("3", 5)),       # R32 #11 -- 3e parmi C/E/F/H/I
+    (("1", "L"), ("3", 6)),       # R32 #12 -- 3e parmi E/H/I/J/K
+    (("1", "J"), ("2", "H")),     # R32 #13
+    (("2", "D"), ("2", "G")),     # R32 #14
+    (("1", "B"), ("3", 7)),       # R32 #15 -- 3e parmi E/F/G/I/J
+    (("1", "K"), ("3", 8)),       # R32 #16 -- 3e parmi D/E/I/J/L
 ]
+
+# Règle officielle FIFA 2026 : chaque "référence de 3e" (1 à 8) n'accepte
+# que les meilleurs 3es provenant de l'un des groupes listés ci-dessous.
+# L'assignation se fait par ordre de classement (meilleur 3e d'abord),
+# en respectant ces contraintes (algorithme glouton avec retour en arrière
+# si nécessaire — voir _assign_best_thirds_to_refs).
+THIRD_PLACE_REF_GROUPS = {
+    1: set("ABCDF"),
+    2: set("CDFGH"),
+    3: set("BEFIJ"),
+    4: set("AEHIJ"),
+    5: set("CEFHI"),
+    6: set("EHIJK"),
+    7: set("EFGIJ"),
+    8: set("DEIJL"),
+}
+
+
+def _assign_best_thirds_to_refs(top_8_thirds: list[dict]) -> dict[int, dict]:
+    """
+    Assigne les 8 meilleurs 3es de groupe aux 8 références (1-8) du tableau
+    R32, en respectant THIRD_PLACE_REF_GROUPS (chaque référence n'accepte que
+    certains groupes d'origine). Algorithme glouton + backtracking simple :
+    on essaie d'assigner dans l'ordre du meilleur 3e au moins bon, en
+    choisissant à chaque fois une référence encore libre et compatible.
+    Lève une exception si aucune assignation valide n'est trouvée (ne devrait
+    pas arriver avec un tirage FIFA réel à 12 groupes).
+    """
+    refs = list(THIRD_PLACE_REF_GROUPS.keys())
+
+    def backtrack(i, used_refs, assignment):
+        if i == len(top_8_thirds):
+            return assignment
+        team = top_8_thirds[i]
+        group = team["from_group"]
+        for ref in refs:
+            if ref in used_refs:
+                continue
+            if group not in THIRD_PLACE_REF_GROUPS[ref]:
+                continue
+            assignment[ref] = team
+            used_refs.add(ref)
+            result = backtrack(i + 1, used_refs, assignment)
+            if result is not None:
+                return result
+            used_refs.remove(ref)
+            del assignment[ref]
+        return None
+
+    result = backtrack(0, set(), {})
+    if result is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Impossible d'assigner les meilleurs 3es aux références R32 (contraintes incompatibles)",
+        )
+    return result
 
 
 async def _seed_r32_from_groups():
@@ -728,10 +784,12 @@ async def _seed_r32_from_groups():
     thirds.sort(key=lambda x: (-x["pts"], -x["diff"], -x["bp"]))
     top_8_thirds = thirds[:8]
 
+    ref_assignment = _assign_best_thirds_to_refs(top_8_thirds)
+
     def resolve_slot(slot):
         kind, ref = slot
         if kind == "3":
-            t = top_8_thirds[ref - 1]
+            t = ref_assignment[ref]
             return t["team"], t["code"]
         # "1" ou "2" + lettre de groupe
         rank_idx = int(kind) - 1
@@ -779,6 +837,67 @@ async def seed_r32_from_groups(_: bool = Depends(require_admin)):
     Normalement inutile : ceci se fait automatiquement dès que tous les matchs de
     groupes sont 'finished' (voir _live_sync_loop)."""
     return await _seed_r32_from_groups()
+
+
+async def _seed_r32_partial_from_finished_groups():
+    """
+    Remplit par anticipation les 1ers/2es de groupe dans les affiches du R32,
+    groupe par groupe, dès qu'un groupe individuel a terminé ses 3 matchs —
+    sans attendre que TOUTE la phase de groupes soit close.
+
+    Ne touche PAS aux slots "3e meilleur" (référence 1-8), qui restent
+    "À déterminer" tant que tous les groupes ne sont pas finis : le classement
+    des meilleurs 3es dépend de la comparaison entre tous les groupes, donc
+    il ne peut être figé avant la fin complète de la phase de groupes
+    (voir _seed_r32_from_groups pour cette partie-là).
+
+    Idempotent : peut être appelée à chaque cycle de sync sans effet de bord
+    sur les groupes déjà traités (re-update avec les mêmes valeurs).
+    """
+    updated_slots = []
+
+    for letter in "ABCDEFGHIJKL":
+        unfinished = await db.matches.count_documents(
+            {"phase": "group", "group": letter, "status": {"$ne": "finished"}}
+        )
+        if unfinished > 0:
+            continue  # ce groupe n'est pas encore clos, on saute
+
+        rows = await _compute_group_standings(letter)
+        if len(rows) < 2:
+            continue
+
+        first_team, first_code = rows[0]["team"], rows[0]["code"]
+        second_team, second_code = rows[1]["team"], rows[1]["code"]
+
+        for slot_kind, slot_name, team_name, team_code in (
+            ("1", letter, first_team, first_code),
+            ("2", letter, second_team, second_code),
+        ):
+            # Cherche dans quel(s) match(s) R32 ce slot apparaît (home ou away)
+            for i, (h_slot, a_slot) in enumerate(R32_MAPPING):
+                md = i + 1
+                if h_slot == (slot_kind, slot_name):
+                    await db.matches.update_one(
+                        {"phase": "knockout", "round": "R32", "matchday": md, "home_code": ""},
+                        {"$set": {"home_team": team_name, "home_code": team_code}},
+                    )
+                    updated_slots.append({"matchday": md, "side": "home", "team": team_name})
+                if a_slot == (slot_kind, slot_name):
+                    await db.matches.update_one(
+                        {"phase": "knockout", "round": "R32", "matchday": md, "away_code": ""},
+                        {"$set": {"away_team": team_name, "away_code": team_code}},
+                    )
+                    updated_slots.append({"matchday": md, "side": "away", "team": team_name})
+
+    return {"ok": True, "updated_slots": updated_slots}
+
+
+@api.post("/admin/seed-r32-partial")
+async def seed_r32_partial(_: bool = Depends(require_admin)):
+    """Déclenche manuellement le remplissage anticipé des 1ers/2es de groupe
+    déjà connus dans le R32 (voir _seed_r32_partial_from_finished_groups)."""
+    return await _seed_r32_partial_from_finished_groups()
 
 
 # ------------------------------------------------------------------
@@ -985,13 +1104,20 @@ _live_sync_task: Optional[asyncio.Task] = None
 
 async def _maybe_seed_r32():
     """Si tous les matchs de groupes sont terminés et que le R32 n'a pas encore
-    été rempli (équipes 'À déterminer'), calcule automatiquement les affiches."""
+    été rempli (équipes 'À déterminer'), calcule automatiquement les affiches.
+    Avant cela, remplit aussi par anticipation les 1ers/2es de groupe connus
+    dès qu'un groupe individuel est clos (voir _seed_r32_partial_from_finished_groups)."""
     try:
         r32_pending = await db.matches.count_documents(
-            {"phase": "knockout", "round": "R32", "home_code": ""}
+            {"phase": "knockout", "round": "R32",
+             "$or": [{"home_code": ""}, {"away_code": ""}]}
         )
         if r32_pending == 0:
             return
+
+        # Remplissage anticipé groupe par groupe (1er/2e connus tôt)
+        await _seed_r32_partial_from_finished_groups()
+
         unfinished = await db.matches.count_documents({"phase": "group", "status": {"$ne": "finished"}})
         if unfinished == 0:
             result = await _seed_r32_from_groups()
