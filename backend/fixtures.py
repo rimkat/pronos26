@@ -313,46 +313,93 @@ def build_group_stage_matches() -> list[dict]:
 
 
 # ------------------------------------------------------------------
-# Phase à élimination directe (placeholders)
+# Phase à élimination directe (placeholders) — calendrier RÉEL officiel
+# Coupe du Monde 2026. Source : calendrier officiel FIFA (heures Paris).
+# Chaque entrée : (matchday, date "YYYY-MM-DD", heure Paris, minute, ville)
 # ------------------------------------------------------------------
+REAL_KNOCKOUT_SCHEDULE: dict[str, list[tuple]] = {
+    "R32": [
+        (1, "2026-06-29", 22, 30, "Foxborough"),
+        (2, "2026-06-30", 23, 0, "East Rutherford"),
+        (3, "2026-06-28", 21, 0, "Los Angeles"),
+        (4, "2026-06-30", 3, 0, "Monterrey"),
+        (5, "2026-07-03", 1, 0, "Toronto"),
+        (6, "2026-07-02", 21, 0, "Los Angeles"),
+        (7, "2026-07-02", 2, 0, "Santa Clara"),
+        (8, "2026-07-01", 22, 0, "Seattle"),
+        (9, "2026-06-29", 19, 0, "Houston"),
+        (10, "2026-06-30", 19, 0, "Arlington"),
+        (11, "2026-07-01", 3, 0, "Mexico"),
+        (12, "2026-07-01", 18, 0, "Atlanta"),
+        (13, "2026-07-04", 0, 0, "Miami"),
+        (14, "2026-07-03", 20, 0, "Arlington"),
+        (15, "2026-07-03", 5, 0, "Vancouver"),
+        (16, "2026-07-04", 3, 30, "Kansas City"),
+    ],
+    "R16": [
+        (1, "2026-07-04", 23, 0, "Philadelphie"),
+        (2, "2026-07-04", 19, 0, "Houston"),
+        (3, "2026-07-06", 21, 0, "Arlington"),
+        (4, "2026-07-07", 2, 0, "Seattle"),
+        (5, "2026-07-05", 22, 0, "East Rutherford"),
+        (6, "2026-07-06", 2, 0, "Mexico"),
+        (7, "2026-07-07", 18, 0, "Atlanta"),
+        (8, "2026-07-07", 22, 0, "Vancouver"),
+    ],
+    "QF": [
+        (1, "2026-07-09", 22, 0, "Foxborough"),
+        (2, "2026-07-10", 21, 0, "Los Angeles"),
+        (3, "2026-07-11", 23, 0, "Miami"),
+        (4, "2026-07-12", 3, 0, "Kansas City"),
+    ],
+    "SF": [
+        (1, "2026-07-14", 21, 0, "Arlington"),
+        (2, "2026-07-15", 21, 0, "Atlanta"),
+    ],
+    "3RD": [
+        (1, "2026-07-18", 23, 0, "Miami"),
+    ],
+    "F": [
+        (1, "2026-07-19", 21, 0, "East Rutherford"),
+    ],
+}
 
-KNOCKOUT_ROUNDS = [
-    # (round_key, label, nb_matches, date_start_offset, daily_count)
-    ("R32", "1/16 de finale", 16, 16),   # 27 juin -> +16 jours après 11 juin
-    ("R16", "1/8 de finale", 8, 22),     # 3 juillet
-    ("QF",  "1/4 de finale", 4, 28),     # 9 juillet
-    ("SF",  "1/2 finale",     2, 33),    # 14 juillet
-    ("3RD", "Match pour la 3e place", 1, 37),  # 18 juillet
-    ("F",   "Finale",         1, 38),    # 19 juillet
-]
+KNOCKOUT_ROUND_LABELS = {
+    "R32": "1/16 de finale",
+    "R16": "1/8 de finale",
+    "QF": "1/4 de finale",
+    "SF": "1/2 finale",
+    "3RD": "Match pour la 3e place",
+    "F": "Finale",
+}
 
 
 def build_knockout_matches() -> list[dict]:
     """
-    Génère 32 matchs placeholders pour la phase à élimination directe.
-    Les équipes sont 'TBD' et seront mises à jour lorsque la phase de groupes sera terminée.
+    Génère les matchs placeholders pour la phase à élimination directe,
+    avec les VRAIES dates/heures/villes du calendrier officiel FIFA 2026.
+    Les équipes sont 'À déterminer' et seront mises à jour au fil du tournoi
+    (1ers/2es de groupe -> R32 manuellement, puis propagation automatique
+    R32 -> R16 -> QF -> SF -> F/3RD via propagate_knockout_winner).
     """
     matches = []
-    base = datetime(2026, 6, 11)
 
-    for round_key, label, nb, date_offset in KNOCKOUT_ROUNDS:
-        for i in range(nb):
-            day = base + timedelta(days=date_offset + (i // 2))
-            hour = 21 if i % 2 == 0 else 0
-            display_day = day if hour >= 6 else day + timedelta(days=0)
-            display_date = display_day.strftime("%Y-%m-%d")
-            kickoff_str = _utc_from_paris(day.strftime("%Y-%m-%d"), hour)
+    for round_key, entries in REAL_KNOCKOUT_SCHEDULE.items():
+        label = KNOCKOUT_ROUND_LABELS[round_key]
+        for matchday, date_str, hour, minute, city in entries:
+            kickoff_str = _utc_from_paris(date_str, hour, minute)
             matches.append({
-                "home_team": f"À déterminer",
+                "home_team": "À déterminer",
                 "home_code": "",
-                "away_team": f"À déterminer",
+                "away_team": "À déterminer",
                 "away_code": "",
                 "group": round_key,
-                "matchday": i + 1,
+                "matchday": matchday,
                 "kickoff_utc": kickoff_str,
-                "display_date": display_date,
+                "display_date": date_str,
                 "kickoff_hour_paris": hour,
-                "broadcast_channels": "beIN Sports 1, TF1" if round_key in ("SF", "F", "3RD") else "beIN Sports 1",
+                "venue_city": city,
+                "broadcast_channels": "beIN Sports 1, M6" if round_key in ("SF", "F", "3RD") else "beIN Sports 1",
                 "status": "scheduled",
                 "home_score_actual": None,
                 "away_score_actual": None,
