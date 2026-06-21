@@ -337,14 +337,14 @@ REAL_KNOCKOUT_SCHEDULE: dict[str, list[tuple]] = {
         (16, "2026-07-04", 3, 30, "Kansas City"),
     ],
     "R16": [
-        (1, "2026-07-04", 23, 0, "Philadelphie"),
-        (2, "2026-07-04", 19, 0, "Houston"),
-        (3, "2026-07-06", 21, 0, "Arlington"),
-        (4, "2026-07-07", 2, 0, "Seattle"),
-        (5, "2026-07-05", 22, 0, "East Rutherford"),
-        (6, "2026-07-06", 2, 0, "Mexico"),
-        (7, "2026-07-07", 18, 0, "Atlanta"),
-        (8, "2026-07-07", 22, 0, "Vancouver"),
+        (1, "2026-07-04", 23, 0, "Houston"),
+        (2, "2026-07-04", 19, 0, "Arlington"),
+        (3, "2026-07-06", 21, 0, "Seattle"),
+        (4, "2026-07-07", 2, 0, "East Rutherford"),
+        (5, "2026-07-05", 22, 0, "Mexico"),
+        (6, "2026-07-06", 2, 0, "Atlanta"),
+        (7, "2026-07-07", 18, 0, "Vancouver"),
+        (8, "2026-07-07", 22, 0, "Houston"),
     ],
     "QF": [
         (1, "2026-07-09", 22, 0, "Foxborough"),
@@ -373,6 +373,37 @@ KNOCKOUT_ROUND_LABELS = {
     "F": "Finale",
 }
 
+# Libellés d'affichage pour les 16 matchs de R32 tant que les équipes ne sont
+# pas encore connues (ex: "1er Groupe E", "3e Groupe A/B/C/D/F"). Index = matchday.
+R32_PLACEHOLDER_LABELS = {
+    1: ("1er Groupe E", "3e Groupe A/B/C/D/F"),
+    2: ("1er Groupe I", "3e Groupe C/D/F/G/H"),
+    3: ("2e Groupe A", "2e Groupe B"),
+    4: ("1er Groupe F", "2e Groupe C"),
+    5: ("2e Groupe K", "2e Groupe L"),
+    6: ("1er Groupe H", "2e Groupe J"),
+    7: ("1er Groupe D", "3e Groupe B/E/F/I/J"),
+    8: ("1er Groupe G", "3e Groupe A/E/H/I/J"),
+    9: ("1er Groupe C", "2e Groupe F"),
+    10: ("2e Groupe E", "2e Groupe I"),
+    11: ("1er Groupe A", "3e Groupe C/E/F/H/I"),
+    12: ("1er Groupe L", "3e Groupe E/H/I/J/K"),
+    13: ("1er Groupe J", "2e Groupe H"),
+    14: ("2e Groupe D", "2e Groupe G"),
+    15: ("1er Groupe B", "3e Groupe E/F/G/I/J"),
+    16: ("1er Groupe K", "3e Groupe D/E/I/J/L"),
+}
+
+# Libellés pour les tours suivants, avant que la propagation automatique
+# (propagate_knockout_winner) ne remplisse les vraies équipes.
+ROUND_PLACEHOLDER_LABELS = {
+    "R16": "Vainqueur Huit.{md}",
+    "QF": "Vainqueur Seiz.{md}",
+    "SF": "Vainqueur Q{md}",
+    "3RD": "Perdant DF{md}",
+    "F": "Vainqueur DF{md}",
+}
+
 
 def build_knockout_matches() -> list[dict]:
     """
@@ -388,11 +419,29 @@ def build_knockout_matches() -> list[dict]:
         label = KNOCKOUT_ROUND_LABELS[round_key]
         for matchday, date_str, hour, minute, city in entries:
             kickoff_str = _utc_from_paris(date_str, hour, minute)
+
+            if round_key == "R32":
+                home_label, away_label = R32_PLACEHOLDER_LABELS[matchday]
+            elif round_key in ("SF", "QF", "R16"):
+                tpl = ROUND_PLACEHOLDER_LABELS[round_key]
+                # Pour SF/QF/R16, home/away dépendent des deux matchs du tour
+                # précédent qui alimentent ce match (md*2-1 et md*2).
+                home_label = tpl.format(md=matchday * 2 - 1)
+                away_label = tpl.format(md=matchday * 2)
+            elif round_key == "3RD":
+                home_label, away_label = "Perdant DF1", "Perdant DF2"
+            elif round_key == "F":
+                home_label, away_label = "Vainqueur DF1", "Vainqueur DF2"
+            else:
+                home_label, away_label = "À déterminer", "À déterminer"
+
             matches.append({
                 "home_team": "À déterminer",
                 "home_code": "",
                 "away_team": "À déterminer",
                 "away_code": "",
+                "placeholder_home_label": home_label,
+                "placeholder_away_label": away_label,
                 "group": round_key,
                 "matchday": matchday,
                 "kickoff_utc": kickoff_str,
