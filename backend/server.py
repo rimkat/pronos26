@@ -562,6 +562,47 @@ async def my_predictions(user: dict = Depends(get_current_user)):
     return preds
 
 
+@api.get("/predictions/match/{match_id}")
+async def match_predictions(match_id: str, user: dict = Depends(get_current_user)):
+    """Retourne les pronostics de tous les participants pour un match,
+    uniquement si le match a déjà commencé (verrouillé)."""
+    match = await db.matches.find_one({"id": match_id}, {"_id": 0})
+    if not match:
+        raise HTTPException(status_code=404, detail="Match introuvable")
+
+    # Vérifier que le match est verrouillé (commencé ou terminé)
+    is_locked = match["status"] != "scheduled"
+    if not is_locked:
+        try:
+            kickoff = datetime.fromisoformat(match["kickoff_utc"])
+            if kickoff.tzinfo is None:
+                kickoff = kickoff.replace(tzinfo=timezone.utc)
+            is_locked = kickoff <= datetime.now(timezone.utc)
+        except (KeyError, ValueError):
+            pass
+
+    if not is_locked:
+        raise HTTPException(status_code=403, detail="Les pronostics ne sont pas encore visibles")
+
+    preds = await db.predictions.find({"match_id": match_id}, {"_id": 0}).to_list(2000)
+
+    # Récupérer les pseudos en une seule requête
+    user_ids = list({p["user_id"] for p in preds})
+    users = await db.users.find({"id": {"$in": user_ids}}, {"_id": 0, "id": 1, "pseudo": 1}).to_list(2000)
+    pseudo_map = {u["id"]: u["pseudo"] for u in users}
+
+    return [
+        {
+            "user_id": p["user_id"],
+            "pseudo": pseudo_map.get(p["user_id"], "?"),
+            "home_score_predicted": p["home_score_predicted"],
+            "away_score_predicted": p["away_score_predicted"],
+            "points_earned": p.get("points_earned", 0),
+        }
+        for p in sorted(preds, key=lambda x: pseudo_map.get(x["user_id"], "").lower())
+    ]
+
+
 # ------------------------------------------------------------------
 # Routes Admin (résultats des matchs)
 # ------------------------------------------------------------------
