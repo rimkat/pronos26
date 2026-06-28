@@ -350,10 +350,10 @@ export default function SpecialPredictionsPage() {
           <div className="rounded-xl border border-border p-4 bg-secondary/30">
             <h3 className="text-xs uppercase tracking-widest font-bold text-muted-foreground mb-3">Barème</h3>
             <div className="space-y-1.5 text-sm">
-              <div className="flex justify-between"><span>🏆 Bon vainqueur + bon finaliste</span><span className="font-black text-primary">28 pts</span></div>
-              <div className="flex justify-between"><span>🥇 Bon vainqueur seulement</span><span className="font-bold">18 pts</span></div>
-              <div className="flex justify-between"><span>🥈 Bon finaliste perdant seulement</span><span className="font-bold">15 pts</span></div>
-              <div className="flex justify-between"><span>✅ Les 2 bonnes équipes (ordre inversé)</span><span className="font-bold">10 pts</span></div>
+              <div className="flex justify-between"><span>🏆 Bon vainqueur + bon finaliste</span><span className="font-black text-primary">52 pts</span></div>
+              <div className="flex justify-between"><span>🥇 Bon vainqueur seulement</span><span className="font-bold">32 pts</span></div>
+              <div className="flex justify-between"><span>🥈 Bon finaliste perdant seulement</span><span className="font-bold">27 pts</span></div>
+              <div className="flex justify-between"><span>✅ Les 2 bonnes équipes (ordre inversé)</span><span className="font-bold">22 pts</span></div>
             </div>
           </div>
 
