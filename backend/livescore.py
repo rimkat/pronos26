@@ -221,13 +221,22 @@ async def _fetch_fixtures_zafronix() -> list[dict]:
         elif home_score is not None and away_score is not None and (home_score > 0 or away_score > 0):
             status = "finished"
         elif home_score is not None and away_score is not None:
-            kickoff = m.get("kickoffTime") or m.get("date") or m.get("matchDate") or ""
-            if kickoff and kickoff < datetime.now(timezone.utc).isoformat():
+    kickoff = m.get("kickoffTime") or m.get("date") or m.get("matchDate") or ""
+    now = datetime.now(timezone.utc)
+    if kickoff:
+        try:
+            ko = datetime.fromisoformat(kickoff.replace("Z", "+00:00"))
+            elapsed = (now - ko).total_seconds() / 60
+            if elapsed > 115:  # match très probablement terminé
                 status = "finished"
+            elif elapsed > 0:
+                status = "live"
             else:
                 status = "scheduled"
-        else:
+        except Exception:
             status = "scheduled"
+    else:
+        status = "scheduled"
 
         penalties = m.get("penalties") or {}
         normalized.append({
