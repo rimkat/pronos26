@@ -745,7 +745,7 @@ async def compute_special_prediction_result(payload: FinalResultIn, _: bool = De
         )
 
         if got_winner and got_runner_up:
-            new_pts = 48
+            new_pts = 52
         elif got_winner:
             new_pts = 32
         elif got_runner_up:
