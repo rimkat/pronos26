@@ -745,13 +745,13 @@ async def compute_special_prediction_result(payload: FinalResultIn, _: bool = De
         )
 
         if got_winner and got_runner_up:
-            new_pts = 28
+            new_pts = 38
         elif got_winner:
-            new_pts = 18
+            new_pts = 28
         elif got_runner_up:
-            new_pts = 15
+            new_pts = 25
         elif both_swapped:
-            new_pts = 10
+            new_pts = 20
         else:
             new_pts = 0
 
