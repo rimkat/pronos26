@@ -2,7 +2,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Button } from "@/components/ui/button";
-import { Trophy, LayoutDashboard, ListOrdered, Sun, Moon, LogOut, LogIn, Users } from "lucide-react";
+import { Trophy, LayoutDashboard, ListOrdered, Sun, Moon, LogOut, LogIn, Users, Star } from "lucide-react";
 
 export default function NavBar() {
   const { user, logout } = useAuth();
@@ -46,6 +46,7 @@ export default function NavBar() {
             {isAuthed && (
               <>
                 <NavLink to="/dashboard" label="Tableau" icon={LayoutDashboard} testid="nav-dashboard" />
+                <NavLink to="/finale" label="Finale" icon={Star} testid="nav-finale" />
                 <NavLink to="/ligues" label="Ligues" icon={Users} testid="nav-leagues" />
                 <NavLink to="/classement" label="Classement" icon={ListOrdered} testid="nav-leaderboard" />
               </>
@@ -95,6 +96,7 @@ export default function NavBar() {
         >
           <BottomLink to="/" label="Matchs" icon={Trophy} testid="bottom-nav-matches" location={location} />
           <BottomLink to="/dashboard" label="Tableau" icon={LayoutDashboard} testid="bottom-nav-dashboard" location={location} />
+          <BottomLink to="/finale" label="Finale" icon={Star} testid="bottom-nav-finale" location={location} />
           <BottomLink to="/ligues" label="Ligues" icon={Users} testid="bottom-nav-leagues" location={location} />
           <BottomLink to="/classement" label="Classement" icon={ListOrdered} testid="bottom-nav-leaderboard" location={location} />
         </nav>

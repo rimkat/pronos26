@@ -188,6 +188,20 @@ class LeaderboardEntry(BaseModel):
     total_points: int
 
 
+class SpecialPredictionIn(BaseModel):
+    winner: str = Field(min_length=1, max_length=60)
+    runner_up: str = Field(min_length=1, max_length=60)
+
+
+class FinalResultIn(BaseModel):
+    winner: str = Field(min_length=1, max_length=60)
+    runner_up: str = Field(min_length=1, max_length=60)
+
+
+# Deadline : 28 juin 2026 à 23h59 heure de Paris = 21h59 UTC
+SPECIAL_PREDICTION_DEADLINE = datetime(2026, 6, 28, 21, 59, 0, tzinfo=timezone.utc)
+
+
 # ------------------------------------------------------------------
 # Calculateur de points
 # ------------------------------------------------------------------
@@ -604,6 +618,57 @@ async def match_predictions(match_id: str, user: dict = Depends(get_current_user
 
 
 # ------------------------------------------------------------------
+# Routes Pronos Spéciaux (finalistes + vainqueur)
+# ------------------------------------------------------------------
+@api.post("/predictions/special")
+async def set_special_prediction(payload: SpecialPredictionIn, user: dict = Depends(get_current_user)):
+    if payload.winner == payload.runner_up:
+        raise HTTPException(status_code=400, detail="Le vainqueur et le finaliste doivent être différents")
+    now = datetime.now(timezone.utc)
+    if now > SPECIAL_PREDICTION_DEADLINE:
+        raise HTTPException(status_code=403, detail="Les pronostics spéciaux sont clôturés")
+    await db.special_predictions.update_one(
+        {"user_id": user["id"]},
+        {"$set": {
+            "user_id": user["id"],
+            "winner": payload.winner,
+            "runner_up": payload.runner_up,
+            "points_earned": 0,
+            "updated_at": now.isoformat(),
+        }},
+        upsert=True,
+    )
+    return {"ok": True}
+
+
+@api.get("/predictions/special/me")
+async def get_my_special_prediction(user: dict = Depends(get_current_user)):
+    pred = await db.special_predictions.find_one({"user_id": user["id"]}, {"_id": 0})
+    now = datetime.now(timezone.utc)
+    return {
+        **(pred or {}),
+        "deadline": SPECIAL_PREDICTION_DEADLINE.isoformat(),
+        "closed": now > SPECIAL_PREDICTION_DEADLINE,
+    }
+
+
+@api.get("/predictions/special/all")
+async def get_all_special_predictions(user: dict = Depends(get_current_user)):
+    """Visible par tous les connectés, mais seulement après la deadline."""
+    now = datetime.now(timezone.utc)
+    if now <= SPECIAL_PREDICTION_DEADLINE:
+        raise HTTPException(status_code=403, detail="Les pronostics ne sont pas encore visibles")
+    preds = await db.special_predictions.find({}, {"_id": 0}).to_list(2000)
+    user_ids = [p["user_id"] for p in preds]
+    users = await db.users.find({"id": {"$in": user_ids}}, {"_id": 0, "id": 1, "pseudo": 1}).to_list(2000)
+    pseudo_map = {u["id"]: u["pseudo"] for u in users}
+    return [
+        {**p, "pseudo": pseudo_map.get(p["user_id"], "?")}
+        for p in sorted(preds, key=lambda x: pseudo_map.get(x["user_id"], "").lower())
+    ]
+
+
+# ------------------------------------------------------------------
 # Routes Admin (résultats des matchs)
 # ------------------------------------------------------------------
 def require_admin(x_admin_token: Optional[str] = Header(None)):
@@ -654,6 +719,56 @@ async def sync_live_scores_endpoint(_: bool = Depends(require_admin)):
     """Déclenche manuellement une synchronisation des scores depuis l'API externe."""
     result = await livescore.sync_live_scores(db, recalculate_match_points, propagate_knockout_winner)
     return {"ok": True, **result}
+
+@api.post("/admin/special-prediction-result")
+async def compute_special_prediction_result(payload: FinalResultIn, _: bool = Depends(require_admin)):
+    """
+    À appeler après la finale. Calcule et attribue les points des pronos spéciaux.
+    Barème :
+      - Bon vainqueur + bon finaliste perdant (ordre exact) → 28 pts
+      - Bon vainqueur seulement                            → 18 pts
+      - Bon finaliste perdant seulement                    → 15 pts
+      - Les 2 bonnes équipes mais ordre inversé            → 10 pts
+    Idempotent : ajuste total_points en soustrayant l'ancien score.
+    """
+    preds = await db.special_predictions.find({}).to_list(2000)
+    computed = 0
+    for pred in preds:
+        user_winner = pred.get("winner", "")
+        user_runner_up = pred.get("runner_up", "")
+        old_pts = pred.get("points_earned", 0)
+
+        got_winner = user_winner == payload.winner
+        got_runner_up = user_runner_up == payload.runner_up
+        both_swapped = (
+            user_winner == payload.runner_up and user_runner_up == payload.winner
+        )
+
+        if got_winner and got_runner_up:
+            new_pts = 28
+        elif got_winner:
+            new_pts = 18
+        elif got_runner_up:
+            new_pts = 15
+        elif both_swapped:
+            new_pts = 10
+        else:
+            new_pts = 0
+
+        delta = new_pts - old_pts
+        await db.special_predictions.update_one(
+            {"user_id": pred["user_id"]},
+            {"$set": {"points_earned": new_pts}},
+        )
+        if delta != 0:
+            await db.users.update_one(
+                {"id": pred["user_id"]},
+                {"$inc": {"total_points": delta}},
+            )
+        computed += 1
+
+    return {"ok": True, "computed": computed, "winner": payload.winner, "runner_up": payload.runner_up}
+
 
 @api.post("/admin/recalculate-all-points")
 async def recalculate_all_points():
@@ -1109,6 +1224,7 @@ async def startup_seed():
     await db.matches.create_index("display_date")
     await db.matches.create_index("group")
     await db.predictions.create_index([("user_id", 1), ("match_id", 1)], unique=True)
+    await db.special_predictions.create_index("user_id", unique=True)
     await db.leagues.create_index("invite_code", unique=True)
     await db.leagues.create_index("member_ids")
 
