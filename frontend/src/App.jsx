@@ -11,6 +11,7 @@ import DashboardPage from "@/pages/Dashboard";
 import LeaderboardPage from "@/pages/Leaderboard";
 import LeaguesPage from "@/pages/Leagues";
 import SpecialPredictionsPage from "@/pages/SpecialPredictions";
+import AdminPage from "@/pages/AdminPage";
 
 function AppContent() {
   const { user } = useAuth();
@@ -28,6 +29,7 @@ function AppContent() {
         <Route path="/leaderboard" element={<LeaderboardPage />} />
         <Route path="/ligues" element={<LeaguesPage />} />
         <Route path="/finale" element={<SpecialPredictionsPage />} />
+        <Route path="/admin" element={<AdminPage />} />
       </Routes>
       <Toaster position="top-right" richColors />
     </div>
