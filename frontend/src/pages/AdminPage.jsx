@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-const ADMIN_TOKEN = "wc2026-admin-secret-token";
+const ADMIN_TOKEN = "wc062026-admin-secret-token";
 
 const adminApi = (method, path, body) =>
   api({ method, url: path, data: body, headers: { "x-admin-token": ADMIN_TOKEN } });
@@ -364,7 +364,7 @@ export default function AdminPage() {
 
   if (authLoading) return null;
   if (!user || !user.id) return <Navigate to="/login" replace />;
-  if (user.pseudo !== "K") return <Navigate to="/" replace />;
+  if (user.pseudo !== "K.") return <Navigate to="/" replace />;
 
   const filteredMatches = dateFilter === "all"
     ? matches
