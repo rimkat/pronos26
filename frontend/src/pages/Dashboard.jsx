@@ -61,6 +61,12 @@ export default function DashboardPage() {
           <h1 className="display text-3xl sm:text-4xl font-black uppercase tracking-tight mt-1">
             Salam <span className="text-primary">{user.pseudo}</span>
           </h1>
+
+          {user.pseudo === "K" && (
+  <Link to="/admin">
+    <Shield className="h-5 w-5 text-primary" />
+  </Link>
+)}
         </div>
       </div>
 
