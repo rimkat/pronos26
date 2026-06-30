@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import api from "@/lib/api";
 import { Navigate, Link } from "react-router-dom";
-import { Trophy, Target, TrendingUp, Users, Loader2 } from "lucide-react";
+import { Trophy, Target, TrendingUp, Users, Loader2, Shield } from "lucide-react";
 
 export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth();
