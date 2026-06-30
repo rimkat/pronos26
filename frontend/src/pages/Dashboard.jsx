@@ -62,7 +62,7 @@ export default function DashboardPage() {
             Salam <span className="text-primary">{user.pseudo}</span>
           </h1>
 
-          {user.pseudo === "K" && (
+          {user.pseudo === "K." && (
   <Link to="/admin">
     <Shield className="h-5 w-5 text-primary" />
   </Link>
